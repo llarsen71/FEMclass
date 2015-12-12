@@ -1,0 +1,38 @@
+\documentclass[letterpaper]{report}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+Solve the Equation:
+
+\begin{equation}
+\left(EA u_x \right)_x + \bar{f}Ax = 0
+\end{equation}
+
+For initial conditions:
+
+\begin{enumerate}
+\item $u(0) = g_1$, $u(L) = g_2$
+\item $u(0) = g_1$, $u_x(L) = \frac{h}{EA}$
+\end{enumerate}
+
+For reference, the values are defined as:
+
+\vspace{0.3in}
+$E = 10^{11}~Pa$, $A = 10^{-4}~m^2$, $f = 10^{-4}~N$, $L = 0.1~m$
+
+$g_1 = 0~m$, $g_2 = 0.001~m$, $h = 10^6~N$
+
+\vspace{0.3in}
+Solution to initial condition (1):
+
+\begin{equation}
+u(x) = -\frac{\bar{f}}{6E} x^3 + \left( \frac{g_2-g_1}{L} + \frac{\bar{f}L^2}{6E} \right) x + g_1
+\end{equation}
+
+Solution to initial condition (2):
+
+\begin{equation}
+u(x) = -\frac{\bar{f}}{6E} x^3 + \left( h+\frac{\bar{f}L^2}{2E} \right) x + g_1
+\end{equation}
+
+\end{document}
