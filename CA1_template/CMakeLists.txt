@@ -2,6 +2,8 @@
 #  CMake script
 ##
 
+include_directories(/usr/include/hdf5/serial)
+
 # Set the name of the project and target:
 SET(TARGET "main1")
 
