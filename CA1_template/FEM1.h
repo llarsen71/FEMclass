@@ -56,7 +56,7 @@ class FEM
   double basis_function(unsigned int node, double xi);
   double basis_gradient(unsigned int node, double xi);
   //new
-  double productFn(unsigned int node, double xi);
+  double productFn(double xi, unsigned int node, unsigned int node2=-1);
 
   //Solution steps
   void generate_mesh(unsigned int numberOfElements);
@@ -147,11 +147,11 @@ double FEM<dim>::xi_at_node(unsigned int dealNode){
 
 // Calculate the product function
 template <int dim>
-double FEM<dim>::productFn(unsigned int node, double xi){
+double FEM<dim>::productFn(double xi, unsigned int node, unsigned int node2){
   double value = 1.0;
   for (unsigned int i = 1; i <= basisFunctionOrder; i++){
-    if (i == node) continue;
-    value = value*(xi-xi_at_node(node));
+    if (i == node || i == node2) continue;
+    value *= (xi-xi_at_node(node));
   }
   return value;
 }
@@ -170,7 +170,7 @@ double FEM<dim>::basis_function(unsigned int node, double xi){
     at any node in the element - using deal.II's element node numbering pattern.*/
 
   //EDIT
-  value = productFn(node, xi)/productFn(node, xi_at_node(node));
+  value = productFn(xi, node)/productFn(xi_at_node(node), node);
 
   return value;
 }
@@ -191,8 +191,15 @@ double FEM<dim>::basis_gradient(unsigned int node, double xi){
 
   //EDIT
   for (unsigned int i = 0; i <= basisFunctionOrder; i++) {
-    
+    if (i == node) continue;
+    double term;
+    for (unsigned int node2 = 0; node2 <= basisFunctionOrder; node2++) {
+      term = productFn(xi, node, node2);
+    }
+    value += term;
   }
+  
+  value = value/productFn(xi_at_node(node), node);
   
   return value;
 }
@@ -206,8 +213,7 @@ void FEM<dim>::generate_mesh(unsigned int numberOfElements){
   double x_min = 0.;
   double x_max = L;
 
-  Point<dim,double> min(x_min),
-    max(x_max);
+  Point<dim,double> min(x_min), max(x_max);
   std::vector<unsigned int> meshDimensions (dim,numberOfElements);
   GridGenerator::subdivided_hyper_rectangle (triangulation, meshDimensions, min, max);
 }
