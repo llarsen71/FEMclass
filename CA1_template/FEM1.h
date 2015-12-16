@@ -55,6 +55,8 @@ class FEM
   //Define your 1D basis functions and derivatives
   double basis_function(unsigned int node, double xi);
   double basis_gradient(unsigned int node, double xi);
+  //new
+  double productFn(unsigned int node, double xi);
 
   //Solution steps
   void generate_mesh(unsigned int numberOfElements);
@@ -143,6 +145,17 @@ double FEM<dim>::xi_at_node(unsigned int dealNode){
   return xi;
 }
 
+// Calculate the product function
+template <int dim>
+double FEM<dim>::productFn(unsigned int node, double xi){
+  double value = 1.0;
+  for (unsigned int i = 1; i <= basisFunctionOrder; i++){
+    if (i == node) continue;
+    value = value*(xi-xi_at_node(node));
+  }
+  return value;
+}
+
 //Define basis functions
 template <int dim>
 double FEM<dim>::basis_function(unsigned int node, double xi){
@@ -151,12 +164,13 @@ double FEM<dim>::basis_function(unsigned int node, double xi){
     "xi" is the point (in the bi-unit domain) where the function is being evaluated.
     You need to calculate the value of the specified basis function and order at the given quadrature pt.*/
 
-  double value = 1.; //Store the value of the basis function in this variable
+  double value; //Store the value of the basis function in this variable
 
   /*You can use the function "xi_at_node" (defined above) to get the value of xi (in the bi-unit domain)
     at any node in the element - using deal.II's element node numbering pattern.*/
 
   //EDIT
+  value = productFn(node, xi)/productFn(node, xi_at_node(node));
 
   return value;
 }
@@ -176,7 +190,10 @@ double FEM<dim>::basis_gradient(unsigned int node, double xi){
     at any node in the element - using deal.II's element node numbering pattern.*/
 
   //EDIT
-
+  for (unsigned int i = 0; i <= basisFunctionOrder; i++) {
+    
+  }
+  
   return value;
 }
 
