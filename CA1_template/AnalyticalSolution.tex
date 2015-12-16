@@ -1,4 +1,5 @@
 \documentclass[letterpaper]{report}
+\usepackage{amsmath}
 \setlength{\parindent}{0pt}
 
 \begin{document}
@@ -33,6 +34,12 @@ Solution to initial condition (2):
 
 \begin{equation}
 u(x) = -\frac{\bar{f}}{6E} x^3 + \left( h+\frac{\bar{f}L^2}{2E} \right) x + g_1
+\end{equation}
+
+Lagrange Polynomial is used for the basis function in domain.
+
+\begin{equation}
+N^A(\xi) = \frac{\prod\limits_{\substack{B=1 \\ B\ne A}}^{N} (\xi-\xi_B)}{\prod\limits_{\substack{B=1 \\ B \ne A}}^{N} (\xi_A-\xi_B)}
 \end{equation}
 
 \end{document}

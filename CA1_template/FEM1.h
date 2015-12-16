@@ -185,7 +185,7 @@ template <int dim>
 void FEM<dim>::generate_mesh(unsigned int numberOfElements){
 
   //Define the limits of your domain
-  L = ; //EDIT
+  L = 0.1; //EDIT
   double x_min = 0.;
   double x_max = L;
 
@@ -229,7 +229,7 @@ template <int dim>
 void FEM<dim>::setup_system(){
 
   //Define constants for problem (Dirichlet boundary values)
-  g1 = ; g2 = ; //EDIT
+  g1 = 0.0; g2 = 0.001; //EDIT
 
   //Let deal.II organize degrees of freedom
   dof_handler.distribute_dofs (fe);
