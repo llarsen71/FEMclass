@@ -38,8 +38,51 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
+#define EPS 3.0e-14
+#define PI  3.141592654
 
 using namespace dealii;
+
+void GaussianQuadraturePoints(int quadRule, std::vector<double> quad_points, std::vector<double> quad_weight) {
+  // Calculate quadrature points and weights
+  float x1 = -1.0, x2 = 1.0;
+  int m;
+  double z1, z, xm, xL, pp, p3,p2, p1;
+
+  quad_points.resize(quadRule); quad_weight.resize(quadRule);
+
+  m  = (quadRule+1)/2;         // Points are symmetric about midpoint. Just find half of them
+  xm = 0.5*(x2+x1);            // Midpoint
+  xL = 0.5*(x2-x1);            // Half interval
+  for (int i=1; i<=m; i++) {
+    z = cos(PI*(i-0.25)/(quadRule+0.5));  // Approximate root
+    do {
+      p1 = 1.0;
+      p2 = 0.0;
+      for (int j=1; j<=quadRule; j++) {
+        p3 = p2;
+        p2 = p1;
+        p1 = ((2.0*j-1.0)*z*p2-(j-1.0)*p3)/j;
+      }
+      pp = quadRule*(z*p1-p2)/(z*z-1.0);
+      z1 = z;
+      z  = z1-p1/pp;
+    } while(fabs(z-z1) > EPS);
+    
+    quad_points[i-1]        = xm-xL*z;
+    quad_points[quadRule-i] = xm+xL*z;
+    quad_weight[i-1]        = 2.0*xL/((1.0-z*z)*pp*pp);
+    quad_weight[quadRule-i] = quad_weight[i-1];
+  }
+  /*
+  quad_points[0] = -sqrt(1./3.); //EDIT
+  quad_points[1] = sqrt(1./3.); //EDIT
+
+  quad_weight[0] = 1.; //EDIT
+  quad_weight[1] = 1.; //EDIT
+  */
+
+}
 
 template <int dim>
 class FEM
@@ -70,21 +113,21 @@ class FEM
   double l2norm_of_error();
 
   //Class objects
-  Triangulation<dim>   triangulation; //mesh
-  FESystem<dim>        fe; 	      //FE element
-  DoFHandler<dim>      dof_handler;   //Connectivity matrices
+  Triangulation<dim>    triangulation; //mesh
+  FESystem<dim>         fe;               //FE element
+  DoFHandler<dim>       dof_handler;   //Connectivity matrices
 
   //Gaussian quadrature - These will be defined in setup_system()
-  unsigned int	        quadRule;    //quadrature rule, i.e. number of quadrature points
-  std::vector<double>	quad_points; //vector of Gauss quadrature points
-  std::vector<double>	quad_weight; //vector of the quadrature point weights
+  unsigned int          quadRule;    //quadrature rule, i.e. number of quadrature points
+  std::vector<double>   quad_points; //vector of Gauss quadrature points
+  std::vector<double>   quad_weight; //vector of the quadrature point weights
     
   //Data structures
   SparsityPattern       sparsity_pattern; //Sparse matrix pattern
-  SparseMatrix<double>  K;		 //Global stiffness (sparse) matrix
-  Vector<double>        D, F; 		 //Global vectors - Solution vector (D) and Global force vector (F)
-  std::vector<double>   nodeLocation;	 //Vector of the x-coordinate of nodes by global dof number
-  std::map<unsigned int,double> boundary_values;	//Map of dirichlet boundary conditions
+  SparseMatrix<double>  K;                 //Global stiffness (sparse) matrix
+  Vector<double>        D, F;                  //Global vectors - Solution vector (D) and Global force vector (F)
+  std::vector<double>   nodeLocation;         //Vector of the x-coordinate of nodes by global dof number
+  std::map<unsigned int,double> boundary_values;        //Map of dirichlet boundary conditions
   double                basisFunctionOrder, prob, L, g1, g2;    
 
   //solution name array
@@ -137,8 +180,8 @@ double FEM<dim>::xi_at_node(unsigned int dealNode){
   }
   else{
     std::cout << "Error: you input node number "
-	      << dealNode << " but there are only " 
-	      << basisFunctionOrder + 1 << " nodes in an element.\n";
+              << dealNode << " but there are only " 
+              << basisFunctionOrder + 1 << " nodes in an element.\n";
     exit(0);
   }
 
@@ -240,11 +283,11 @@ void FEM<dim>::define_boundary_conds(){
     }
     if(nodeLocation[globalNode] == L){
       if(prob == 1){
-	boundary_values[globalNode] = g2;
+        boundary_values[globalNode] = g2;
       }
     }
   }
-			
+                        
 }
 
 //Setup data structures (sparse matrix, vectors)
@@ -271,24 +314,15 @@ void FEM<dim>::setup_system(){
 
   //Define the size of the global matrices and vectors
   sparsity_pattern.reinit (dof_handler.n_dofs(), dof_handler.n_dofs(),
-			   dof_handler.max_couplings_between_dofs());
+                           dof_handler.max_couplings_between_dofs());
   DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern);
   sparsity_pattern.compress();
   K.reinit (sparsity_pattern);
   F.reinit (dof_handler.n_dofs());
   D.reinit (dof_handler.n_dofs());
 
-  //Define quadrature rule
-  /*A quad rule of 2 is included here as an example. You will need to decide
-    what quadrature rule is needed for the given problems*/
   quadRule = 2; //EDIT - Number of quadrature points along one dimension
-  quad_points.resize(quadRule); quad_weight.resize(quadRule);
-
-  quad_points[0] = -sqrt(1./3.); //EDIT
-  quad_points[1] = sqrt(1./3.); //EDIT
-
-  quad_weight[0] = 1.; //EDIT
-  quad_weight[1] = 1.; //EDIT
+  GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
   std::cout << "   Number of active elems:       " << triangulation.n_active_cells() << std::endl;
@@ -301,11 +335,11 @@ void FEM<dim>::assemble_system(){
 
   K=0; F=0;
 
-  const unsigned int   			dofs_per_elem = fe.dofs_per_cell; //This gives you number of degrees of freedom per element
-  FullMatrix<double> 				Klocal (dofs_per_elem, dofs_per_elem);
-  Vector<double>      			Flocal (dofs_per_elem);
+  const unsigned int                           dofs_per_elem = fe.dofs_per_cell; //This gives you number of degrees of freedom per element
+  FullMatrix<double>                                 Klocal (dofs_per_elem, dofs_per_elem);
+  Vector<double>                              Flocal (dofs_per_elem);
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
-  double										h_e, x, f;
+  double                                                                                h_e, x, f;
 
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active(), 
@@ -327,18 +361,18 @@ void FEM<dim>::assemble_system(){
     Flocal = 0.;
     for(unsigned int A=0; A<dofs_per_elem; A++){
       for(unsigned int q=0; q<quadRule; q++){
-	x = 0;
-	//Interpolate the x-coordinates at the nodes to find the x-coordinate at the quad pt.
-	for(unsigned int B=0; B<dofs_per_elem; B++){
-	  x += nodeLocation[local_dof_indices[B]]*basis_function(B,quad_points[q]);
-	}
-	//EDIT - Define Flocal.
+        x = 0;
+        //Interpolate the x-coordinates at the nodes to find the x-coordinate at the quad pt.
+        for(unsigned int B=0; B<dofs_per_elem; B++){
+          x += nodeLocation[local_dof_indices[B]]*basis_function(B,quad_points[q]);
+        }
+        //EDIT - Define Flocal.
       }
     }
     //Add nonzero Neumann condition, if applicable
     if(prob == 2){ 
       if(nodeLocation[local_dof_indices[1]] == L){
-	//EDIT - Modify Flocal to include the traction on the right boundary.
+        //EDIT - Modify Flocal to include the traction on the right boundary.
       }
     }
 
@@ -346,9 +380,9 @@ void FEM<dim>::assemble_system(){
     Klocal = 0;
     for(unsigned int A=0; A<dofs_per_elem; A++){
       for(unsigned int B=0; B<dofs_per_elem; B++){
-	for(unsigned int q=0; q<quadRule; q++){
-	  //EDIT - Define Klocal.
-	}
+        for(unsigned int q=0; q<quadRule; q++){
+          //EDIT - Define Klocal.
+        }
       }
     }
 
@@ -357,12 +391,12 @@ void FEM<dim>::assemble_system(){
     for(unsigned int A=0; A<dofs_per_elem; A++){
       //EDIT - add component A of Flocal to the correct location in F
       /*Remember, local_dof_indices[A] is the global degree-of-freedom number
-	corresponding to element node number A*/
+        corresponding to element node number A*/
       for(unsigned int B=0; B<dofs_per_elem; B++){
-	//EDIT - add component A,B of Klocal to the correct location in K (using local_dof_indices)
-	/*Note: K is a sparse matrix, so you need to use the function "add".
-	  For example, to add the variable C to K[i][j], you would use:
-	  K.add(i,j,C);*/
+        //EDIT - add component A,B of Klocal to the correct location in K (using local_dof_indices)
+        /*Note: K is a sparse matrix, so you need to use the function "add".
+          For example, to add the variable C to K[i][j], you would use:
+          K.add(i,j,C);*/
       }
     }
 
@@ -396,7 +430,7 @@ void FEM<dim>::output_results (){
 
   //Add nodal DOF data
   data_out.add_data_vector(D, nodal_solution_names, DataOut<dim>::type_dof_data,
-			   nodal_data_component_interpretation);
+                           nodal_data_component_interpretation);
   data_out.build_patches();
   data_out.write_vtk(output1);
   output1.close();
@@ -404,11 +438,11 @@ void FEM<dim>::output_results (){
 
 template <int dim>
 double FEM<dim>::l2norm_of_error(){
-	
+        
   double l2norm = 0.;
 
   //Find the l2 norm of the error between the finite element sol'n and the exact sol'n
-  const unsigned int   			dofs_per_elem = fe.dofs_per_cell; //This gives you dofs per element
+  const unsigned int                           dofs_per_elem = fe.dofs_per_cell; //This gives you dofs per element
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
   double u_exact, u_h, x, h_e;
 
@@ -427,12 +461,12 @@ double FEM<dim>::l2norm_of_error(){
       x = 0.; u_h = 0.;
       //Find the values of x and u_h (the finite element solution) at the quadrature points
       for(unsigned int B=0; B<dofs_per_elem; B++){
-	x += nodeLocation[local_dof_indices[B]]*basis_function(B,quad_points[q]);
-	u_h += D[local_dof_indices[B]]*basis_function(B,quad_points[q]);
+        x += nodeLocation[local_dof_indices[B]]*basis_function(B,quad_points[q]);
+        u_h += D[local_dof_indices[B]]*basis_function(B,quad_points[q]);
       }
       //EDIT - Find the l2-norm of the error through numerical integration.
       /*This includes evaluating the exact solution at the quadrature points*/
-							
+                                                        
     }
   }
 
