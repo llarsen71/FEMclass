@@ -74,14 +74,6 @@ void GaussianQuadraturePoints(int quadRule, std::vector<double> quad_points, std
     quad_weight[i-1]        = 2.0*xL/((1.0-z*z)*pp*pp);
     quad_weight[quadRule-i] = quad_weight[i-1];
   }
-  /*
-  quad_points[0] = -sqrt(1./3.); //EDIT
-  quad_points[1] = sqrt(1./3.); //EDIT
-
-  quad_weight[0] = 1.; //EDIT
-  quad_weight[1] = 1.; //EDIT
-  */
-
 }
 
 template <int dim>
@@ -321,7 +313,8 @@ void FEM<dim>::setup_system(){
   F.reinit (dof_handler.n_dofs());
   D.reinit (dof_handler.n_dofs());
 
-  quadRule = 2; //EDIT - Number of quadrature points along one dimension
+  // Exactly integrates polynomials of order 2*quadRule-1
+  quadRule = 3; //EDIT - Number of quadrature points along one dimension
   GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
@@ -335,12 +328,14 @@ void FEM<dim>::assemble_system(){
 
   K=0; F=0;
 
-  const unsigned int                           dofs_per_elem = fe.dofs_per_cell; //This gives you number of degrees of freedom per element
-  FullMatrix<double>                                 Klocal (dofs_per_elem, dofs_per_elem);
-  Vector<double>                              Flocal (dofs_per_elem);
+  const unsigned int        dofs_per_elem = fe.dofs_per_cell; //This gives you number of degrees of freedom per element
+  FullMatrix<double>        Klocal (dofs_per_elem, dofs_per_elem);
+  Vector<double>            Flocal (dofs_per_elem);
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
-  double                                                                                h_e, x, f;
+  double                    h_e, x, f;
 
+  f = 10e11; // N*m-4
+  
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active(), 
     endc = dof_handler.end();
@@ -367,8 +362,11 @@ void FEM<dim>::assemble_system(){
           x += nodeLocation[local_dof_indices[B]]*basis_function(B,quad_points[q]);
         }
         //EDIT - Define Flocal.
+        //Flocal[local_dof_indices[A]] =  f*NA;
       }
     }
+    //Flocal *= h_e/2.0;
+    
     //Add nonzero Neumann condition, if applicable
     if(prob == 2){ 
       if(nodeLocation[local_dof_indices[1]] == L){
