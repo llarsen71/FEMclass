@@ -332,9 +332,13 @@ void FEM<dim>::assemble_system(){
   FullMatrix<double>        Klocal (dofs_per_elem, dofs_per_elem);
   Vector<double>            Flocal (dofs_per_elem);
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
-  double                    h_e, x, f;
+  double                    h_e, x, f, Area, h, E;
 
-  f = 10e11; // N*m-4
+  // F = f*x
+  f    = 10.0e11; // N*m-4
+  Area = 10.0e-4; // m^2
+  h    = 10.0e6;  // N
+  E    = 10.0e11; // Pa
   
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active(), 
@@ -358,19 +362,22 @@ void FEM<dim>::assemble_system(){
       for(unsigned int q=0; q<quadRule; q++){
         x = 0;
         //Interpolate the x-coordinates at the nodes to find the x-coordinate at the quad pt.
+	// Could have just used linear interpolation below (same result)
         for(unsigned int B=0; B<dofs_per_elem; B++){
           x += nodeLocation[local_dof_indices[B]]*basis_function(B,quad_points[q]);
         }
         //EDIT - Define Flocal.
-        //Flocal[local_dof_indices[A]] =  f*NA;
+        // F = f*x
+        Flocal[A] = f*x*basis_function(A,quad_points[q])*quad_weight[q];
       }
     }
-    //Flocal *= h_e/2.0;
+    Flocal *= h_e*Area/2.0;  // Flocal = sum(F*NA*A*dx) = sum(f*x*NA*A*dx) - Ignore A in all terms
     
     //Add nonzero Neumann condition, if applicable
     if(prob == 2){ 
       if(nodeLocation[local_dof_indices[1]] == L){
         //EDIT - Modify Flocal to include the traction on the right boundary.
+	Flocal[1] += basis_function(local_dof_indices[1],L)*h;
       }
     }
 
@@ -380,6 +387,8 @@ void FEM<dim>::assemble_system(){
       for(unsigned int B=0; B<dofs_per_elem; B++){
         for(unsigned int q=0; q<quadRule; q++){
           //EDIT - Define Klocal.
+	  Klocal[A][B] += quad_weight[q]*basis_gradient(local_dof_indices[A], quad_points[q])*basis_gradient(local_dof_indices[B], quad_points[q]);
+	  Klocal[A][B] *= E*Area*2.0/h_e;
         }
       }
     }
@@ -390,14 +399,15 @@ void FEM<dim>::assemble_system(){
       //EDIT - add component A of Flocal to the correct location in F
       /*Remember, local_dof_indices[A] is the global degree-of-freedom number
         corresponding to element node number A*/
+      F.add(local_dof_indices[A], Flocal);
       for(unsigned int B=0; B<dofs_per_elem; B++){
         //EDIT - add component A,B of Klocal to the correct location in K (using local_dof_indices)
         /*Note: K is a sparse matrix, so you need to use the function "add".
           For example, to add the variable C to K[i][j], you would use:
           K.add(i,j,C);*/
+	K.add(local_dof_indices[A], local_dof_indices[B], Klocal[A][B]);
       }
     }
-
   }
 
   //Apply Dirichlet boundary conditions
