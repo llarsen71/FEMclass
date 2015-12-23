@@ -43,7 +43,7 @@
 
 using namespace dealii;
 
-void GaussianQuadraturePoints(int quadRule, std::vector<double> quad_points, std::vector<double> quad_weight) {
+void GaussianQuadraturePoints(int quadRule, std::vector<double> &quad_points, std::vector<double> &quad_weight) {
   // Calculate quadrature points and weights
   float x1 = -1.0, x2 = 1.0;
   int m;
@@ -91,7 +91,7 @@ class FEM
   double basis_function(unsigned int node, double xi);
   double basis_gradient(unsigned int node, double xi);
   //new
-  double productFn(double xi, unsigned int node, unsigned int node2=-1);
+  double productFn(double xi, unsigned int node, unsigned int node2=10000000);
 
   //Solution steps
   void generate_mesh(unsigned int numberOfElements);
@@ -184,9 +184,9 @@ double FEM<dim>::xi_at_node(unsigned int dealNode){
 template <int dim>
 double FEM<dim>::productFn(double xi, unsigned int node, unsigned int node2){
   double value = 1.0;
-  for (unsigned int i = 1; i <= basisFunctionOrder; i++){
+  for (unsigned int i = 0; i <= basisFunctionOrder; i++){
     if (i == node || i == node2) continue;
-    value *= (xi-xi_at_node(node));
+    value *= (xi-xi_at_node(i));
   }
   return value;
 }
@@ -225,12 +225,10 @@ double FEM<dim>::basis_gradient(unsigned int node, double xi){
     at any node in the element - using deal.II's element node numbering pattern.*/
 
   //EDIT
-  for (unsigned int i = 0; i <= basisFunctionOrder; i++) {
+  double term = 0.0;
+  for (unsigned int node2 = 0; node2 <= basisFunctionOrder; node2++) {
     if (i == node) continue;
-    double term;
-    for (unsigned int node2 = 0; node2 <= basisFunctionOrder; node2++) {
-      term = productFn(xi, node, node2);
-    }
+    term = productFn(xi, node, node2);
     value += term;
   }
   
@@ -360,7 +358,7 @@ void FEM<dim>::assemble_system(){
     Flocal = 0.;
     for(unsigned int A=0; A<dofs_per_elem; A++){
       for(unsigned int q=0; q<quadRule; q++){
-        x = 0;
+        x = 0.;
         //Interpolate the x-coordinates at the nodes to find the x-coordinate at the quad pt.
 	// Could have just used linear interpolation below (same result)
         for(unsigned int B=0; B<dofs_per_elem; B++){
@@ -453,6 +451,12 @@ double FEM<dim>::l2norm_of_error(){
   const unsigned int                           dofs_per_elem = fe.dofs_per_cell; //This gives you dofs per element
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
   double u_exact, u_h, x, h_e;
+  double f, h, E;
+
+  // F = f*x
+  f    = 10.0e11; // N*m-4
+  h    = 10.0e6;  // N
+  E    = 10.0e11; // Pa
 
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active (), 
@@ -474,7 +478,9 @@ double FEM<dim>::l2norm_of_error(){
       }
       //EDIT - Find the l2-norm of the error through numerical integration.
       /*This includes evaluating the exact solution at the quadrature points*/
-                                                        
+      u_exact = -f*pow(x,3.0)/(6*E)+((g2-g1)/L+f*pow(L,2.0)/(6*E))*x + g1;
+      
+      l2norm += quad_weight[q]*pow(u_h - u_exact, 2.0);
     }
   }
 
