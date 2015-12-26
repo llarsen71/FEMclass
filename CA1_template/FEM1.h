@@ -227,7 +227,7 @@ double FEM<dim>::basis_gradient(unsigned int node, double xi){
   //EDIT
   double term = 0.0;
   for (unsigned int node2 = 0; node2 <= basisFunctionOrder; node2++) {
-    if (i == node) continue;
+    if (node2 == node) continue;
     term = productFn(xi, node, node2);
     value += term;
   }
@@ -312,7 +312,7 @@ void FEM<dim>::setup_system(){
   D.reinit (dof_handler.n_dofs());
 
   // Exactly integrates polynomials of order 2*quadRule-1
-  quadRule = 3; //EDIT - Number of quadrature points along one dimension
+  quadRule = 5; //EDIT - Number of quadrature points along one dimension
   GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
@@ -330,13 +330,13 @@ void FEM<dim>::assemble_system(){
   FullMatrix<double>        Klocal (dofs_per_elem, dofs_per_elem);
   Vector<double>            Flocal (dofs_per_elem);
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
-  double                    h_e, x, f, Area, h, E;
+  double                    h_e, x, f, Area, h, E, intg;
 
   // F = f*x
-  f    = 10.0e11; // N*m-4
-  Area = 10.0e-4; // m^2
-  h    = 10.0e6;  // N
-  E    = 10.0e11; // Pa
+  f    = 1.0e11; // N*m-4
+  Area = 1.0e-4; // m^2
+  h    = 1.0e6;  // N
+  E    = 1.0e11; // Pa
   
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active(), 
@@ -366,16 +366,16 @@ void FEM<dim>::assemble_system(){
         }
         //EDIT - Define Flocal.
         // F = f*x
-        Flocal[A] = f*x*basis_function(A,quad_points[q])*quad_weight[q];
+        intg = basis_function(A,quad_points[q])*quad_weight[q];
+        Flocal[A] = f*x*intg*Area*h_e/2.0;
       }
     }
-    Flocal *= h_e*Area/2.0;  // Flocal = sum(F*NA*A*dx) = sum(f*x*NA*A*dx) - Ignore A in all terms
     
     //Add nonzero Neumann condition, if applicable
     if(prob == 2){ 
       if(nodeLocation[local_dof_indices[1]] == L){
         //EDIT - Modify Flocal to include the traction on the right boundary.
-	Flocal[1] += basis_function(local_dof_indices[1],L)*h;
+	Flocal[1] += basis_function(1,1.0)*h;
       }
     }
 
@@ -385,8 +385,8 @@ void FEM<dim>::assemble_system(){
       for(unsigned int B=0; B<dofs_per_elem; B++){
         for(unsigned int q=0; q<quadRule; q++){
           //EDIT - Define Klocal.
-	  Klocal[A][B] += quad_weight[q]*basis_gradient(local_dof_indices[A], quad_points[q])*basis_gradient(local_dof_indices[B], quad_points[q]);
-	  Klocal[A][B] *= E*Area*2.0/h_e;
+	  intg = quad_weight[q]*basis_gradient(A, quad_points[q])*basis_gradient(B, quad_points[q]);
+	  Klocal[A][B] += E*Area*intg*2.0/h_e;
         }
       }
     }
@@ -397,17 +397,20 @@ void FEM<dim>::assemble_system(){
       //EDIT - add component A of Flocal to the correct location in F
       /*Remember, local_dof_indices[A] is the global degree-of-freedom number
         corresponding to element node number A*/
-      F.add(local_dof_indices[A], Flocal);
+      F[local_dof_indices[A]] += Flocal[A];
       for(unsigned int B=0; B<dofs_per_elem; B++){
         //EDIT - add component A,B of Klocal to the correct location in K (using local_dof_indices)
         /*Note: K is a sparse matrix, so you need to use the function "add".
           For example, to add the variable C to K[i][j], you would use:
           K.add(i,j,C);*/
+	//std::cout << Klocal[A][B];
 	K.add(local_dof_indices[A], local_dof_indices[B], Klocal[A][B]);
       }
     }
   }
-
+  //std::cout << std::endl;
+  //std::cout << F;
+  
   //Apply Dirichlet boundary conditions
   /*deal.II applies Dirichlet boundary conditions (using the boundary_values map we
     defined in the function "define_boundary_conds") without resizing K or F*/
@@ -450,13 +453,13 @@ double FEM<dim>::l2norm_of_error(){
   //Find the l2 norm of the error between the finite element sol'n and the exact sol'n
   const unsigned int                           dofs_per_elem = fe.dofs_per_cell; //This gives you dofs per element
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
-  double u_exact, u_h, x, h_e;
-  double f, h, E;
+  double u_exact, u_h, x;
+  double f, h, E, h_e;
 
   // F = f*x
-  f    = 10.0e11; // N*m-4
-  h    = 10.0e6;  // N
-  E    = 10.0e11; // Pa
+  f    = 1.0e11; // N*m-4
+  h    = 1.0e6;  // N
+  E    = 1.0e11; // Pa
 
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active (), 
@@ -480,7 +483,7 @@ double FEM<dim>::l2norm_of_error(){
       /*This includes evaluating the exact solution at the quadrature points*/
       u_exact = -f*pow(x,3.0)/(6*E)+((g2-g1)/L+f*pow(L,2.0)/(6*E))*x + g1;
       
-      l2norm += quad_weight[q]*pow(u_h - u_exact, 2.0);
+      l2norm += quad_weight[q]*pow(u_h - u_exact, 2.0)*h_e/2.0;
     }
   }
 
