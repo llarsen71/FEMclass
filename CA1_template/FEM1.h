@@ -276,8 +276,7 @@ void FEM<dim>::define_boundary_conds(){
         boundary_values[globalNode] = g2;
       }
     }
-  }
-                        
+  }                    
 }
 
 //Setup data structures (sparse matrix, vectors)
@@ -312,7 +311,7 @@ void FEM<dim>::setup_system(){
   D.reinit (dof_handler.n_dofs());
 
   // Exactly integrates polynomials of order 2*quadRule-1
-  quadRule = 5; //EDIT - Number of quadrature points along one dimension
+  quadRule = 6; //EDIT - Number of quadrature points along one dimension
   GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
@@ -367,7 +366,7 @@ void FEM<dim>::assemble_system(){
         //EDIT - Define Flocal.
         // F = f*x
         intg = basis_function(A,quad_points[q])*quad_weight[q];
-        Flocal[A] = f*x*intg*Area*h_e/2.0;
+        Flocal[A] += f*x*intg*Area*h_e/2.0;
       }
     }
     
@@ -403,13 +402,10 @@ void FEM<dim>::assemble_system(){
         /*Note: K is a sparse matrix, so you need to use the function "add".
           For example, to add the variable C to K[i][j], you would use:
           K.add(i,j,C);*/
-	//std::cout << Klocal[A][B];
 	K.add(local_dof_indices[A], local_dof_indices[B], Klocal[A][B]);
       }
     }
   }
-  //std::cout << std::endl;
-  //std::cout << F;
   
   //Apply Dirichlet boundary conditions
   /*deal.II applies Dirichlet boundary conditions (using the boundary_values map we
