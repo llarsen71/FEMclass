@@ -450,12 +450,13 @@ double FEM<dim>::l2norm_of_error(){
   const unsigned int                           dofs_per_elem = fe.dofs_per_cell; //This gives you dofs per element
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
   double u_exact, u_h, x;
-  double f, h, E, h_e;
+  double f, h, E, h_e, Area;
 
   // F = f*x
   f    = 1.0e11; // N*m-4
   h    = 1.0e6;  // N
   E    = 1.0e11; // Pa
+  Area = 1.0e-4; // m^2
 
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active (), 
@@ -477,7 +478,13 @@ double FEM<dim>::l2norm_of_error(){
       }
       //EDIT - Find the l2-norm of the error through numerical integration.
       /*This includes evaluating the exact solution at the quadrature points*/
-      u_exact = -f*pow(x,3.0)/(6*E)+((g2-g1)/L+f*pow(L,2.0)/(6*E))*x + g1;
+      u_exact = 0.0;
+      if(prob == 1) {
+        u_exact = -f*pow(x,3.0)/(6*E)+((g2-g1)/L+f*pow(L,2.0)/(6*E))*x + g1;
+      }
+      if(prob == 2){
+	u_exact = -f*pow(x,3.0)/(6*E)+(h/(E*Area)+f*pow(L,2.0)/(2*E))*x + g1;
+      }
       
       l2norm += quad_weight[q]*pow(u_h - u_exact, 2.0)*h_e/2.0;
     }
