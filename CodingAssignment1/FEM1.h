@@ -44,7 +44,7 @@
 using namespace dealii;
 
 void GaussianQuadraturePoints(int quadRule, std::vector<double> &quad_points, std::vector<double> &quad_weight) {
-  // Calculate quadrature points and weights
+  // Calculate Gauss Legendre quadrature points and weights
   float x1 = -1.0, x2 = 1.0;
   int m;
   double z1, z, xm, xL, pp, p3,p2, p1;
@@ -86,12 +86,12 @@ class FEM
 
   //Function to find the value of xi at the given node (using deal.II node numbering)
   double xi_at_node(unsigned int dealNode);
+  //new
+  double productFn(double xi, unsigned int node, unsigned int node2=10000000);
 
   //Define your 1D basis functions and derivatives
   double basis_function(unsigned int node, double xi);
   double basis_gradient(unsigned int node, double xi);
-  //new
-  double productFn(double xi, unsigned int node, unsigned int node2=10000000);
 
   //Solution steps
   void generate_mesh(unsigned int numberOfElements);
