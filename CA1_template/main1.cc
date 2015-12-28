@@ -26,7 +26,7 @@ int main (){
     FEM<1> problemObject(order,problem);
     
     //Define the number of elements as an input to "generate_mesh"
-    problemObject.generate_mesh(10); //e.g. a 10 element mesh
+    problemObject.generate_mesh(100); //e.g. a 10 element mesh
     problemObject.setup_system();
     problemObject.assemble_system();
     problemObject.solve();
