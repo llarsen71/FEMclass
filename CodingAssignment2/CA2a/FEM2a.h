@@ -38,8 +38,43 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
+#define EPS 3.0e-14
+#define PI  3.141592654
 
 using namespace dealii;
+
+void GaussianQuadraturePoints(int quadRule, std::vector<double> &quad_points, std::vector<double> &quad_weight) {
+  // Calculate Gauss Legendre quadrature points and weights
+  float x1 = -1.0, x2 = 1.0;
+  int m;
+  double z1, z, xm, xL, pp, p3,p2, p1;
+
+  quad_points.resize(quadRule); quad_weight.resize(quadRule);
+
+  m  = (quadRule+1)/2;         // Points are symmetric about midpoint. Just find half of them
+  xm = 0.5*(x2+x1);            // Midpoint
+  xL = 0.5*(x2-x1);            // Half interval
+  for (int i=1; i<=m; i++) {
+    z = cos(PI*(i-0.25)/(quadRule+0.5));  // Approximate root
+    do {
+      p1 = 1.0;
+      p2 = 0.0;
+      for (int j=1; j<=quadRule; j++) {
+        p3 = p2;
+        p2 = p1;
+        p1 = ((2.0*j-1.0)*z*p2-(j-1.0)*p3)/j;
+      }
+      pp = quadRule*(z*p1-p2)/(z*z-1.0);
+      z1 = z;
+      z  = z1-p1/pp;
+    } while(fabs(z-z1) > EPS);
+    
+    quad_points[i-1]        = xm-xL*z;
+    quad_points[quadRule-i] = xm+xL*z;
+    quad_weight[i-1]        = 2.0*xL/((1.0-z*z)*pp*pp);
+    quad_weight[quadRule-i] = quad_weight[i-1];
+  }
+}
 
 template <int dim>
 class FEM
@@ -77,6 +112,7 @@ class FEM
   Vector<double>                D, F;             //Global vectors - Solution vector (D) and Global force vector (F)
   Table<2,double>               nodeLocation;     //Table of the coordinates of nodes by global dof number
   std::map<unsigned int,double> boundary_values;  //Map of dirichlet boundary conditions 
+  unsigned int                  basis_function_order = 1; // Linear Basis Functions will be used
 
   //solution name array
   std::vector<std::string> nodal_solution_names;
@@ -135,13 +171,12 @@ template <int dim>
 void FEM<dim>::generate_mesh(std::vector<unsigned int> numberOfElements){
 
   //Define the limits of your domain
-  double x_min = , //EDIT - define the left limit of the domain, etc.
-         x_max = , //EDIT
-         y_min = , //EDIT
-         y_max = ; //EDIT
+  double x_min = 0.0,  //EDIT - define the left limit of the domain, etc.
+         x_max = 0.03, //EDIT
+         y_min = 0.0,  //EDIT
+         y_max = 0.08; //EDIT
 
-  Point<dim,double> min(x_min,y_min),
-    max(x_max,y_max);
+  Point<dim,double> min(x_min,y_min), max(x_max,y_max);
   GridGenerator::subdivided_hyper_rectangle (triangulation, numberOfElements, min, max);
 }
 
@@ -163,7 +198,21 @@ void FEM<dim>::define_boundary_conds(){
     the global node number; the column index refers to the x or y component (0 or 1 for 2D).
     e.g. nodeLocation[7][1] is the y coordinate of global node 7*/
 
+  double x = 0.0;
   const unsigned int totalNodes = dof_handler.n_dofs(); //Total number of nodes
+  const double c0  = 1.0/3.0; // K/m
+  const double c0h = 8.0;     // K/m2
+  
+  for (int i=0; i<totalNodes; i++) {
+    if (nodeLocation[i][1] == 0.0) {
+      x = nodeLocation[i][0];
+      boundary_values[i] = 300*(1+c0*x); // K
+    }
+    if (nodeLocation[i][1] == 0.08) {
+      x = nodeLocation[i][0];
+      boundary_values[i] = 310*(1+c0h*x*x); // K
+    }
+  }
 }
 
 //Setup data structures (sparse matrix, vectors)
@@ -184,7 +233,7 @@ void FEM<dim>::setup_system(){
     }
   }
 
-  //Specify boundary condtions (call the function)
+  //Specify boundary conditions (call the function)
   define_boundary_conds();
 
   //Define the size of the global matrices and vectors
@@ -197,14 +246,9 @@ void FEM<dim>::setup_system(){
   D.reinit (dof_handler.n_dofs());
 
   //Define quadrature rule - again, you decide what quad rule is needed
-  quadRule = 2; //EDIT - Number of quadrature points along one dimension
-  quad_points.resize(quadRule); quad_weight.resize(quadRule);
-
-  quad_points[0] = -sqrt(1./3.); //EDIT
-  quad_points[1] = sqrt(1./3.); //EDIT
-
-  quad_weight[0] = 1.; //EDIT
-  quad_weight[1] = 1.; //EDIT
+  // Exactly integrates polynomials of order 2*quadRule-1
+  quadRule = 6; //EDIT - Number of quadrature points along one dimension
+  GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
   std::cout << "   Number of active elems:       " << triangulation.n_active_cells() << std::endl;
@@ -249,10 +293,12 @@ void FEM<dim>::assemble_system(){
             }
           }
         }
+        /*
         detJ = Jacobian.determinant();
         for(unsigned int A=0; A<dofs_per_elem; A++){
           //You would define Flocal here if it were nonzero.
         }
+        */
       }
     }
 
