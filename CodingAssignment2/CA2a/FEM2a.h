@@ -146,10 +146,14 @@ template <int dim>
 double FEM<dim>::xi_at_node(unsigned int dealNode, unsigned int dimension){
   double xi;
   unsigned int groupnum, n_per_group;
-
+  
+  // Node 0: -1  1 -1  1 -1  1 -1  1
+  // Node 1: -1 -1  1  1 -1 -1  1  1
+  // Node 2: -1 -1 -1 -1  1  1  1  1
+  //
   // Configured for linear basis functions. Does not handle interior points.
   n_per_group = pow(2, dimension);
-  groupnum = dealNode/n_per_group % 2;
+  groupnum = (dealNode/n_per_group) % 2;
   
   xi = (groupnum == 0) ? -1.0 : 1.0;
   return xi;
