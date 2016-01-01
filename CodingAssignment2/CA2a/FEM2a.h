@@ -252,7 +252,7 @@ void FEM<dim>::define_boundary_conds(){
   const double c0  = 1.0/3.0; // K/m
   const double c0h = 8.0;     // K/m2
   
-  for (int i=0; i<totalNodes; i++) {
+  for (unsigned int i=0; i<totalNodes; i++) {
     if (nodeLocation[i][1] == 0.0) {
       x = nodeLocation[i][0];
       boundary_values[i] = 300*(1+c0*x); // K
@@ -337,6 +337,12 @@ void FEM<dim>::assemble_system(){
         for(unsigned int i=0;i<dim;i++){
           for(unsigned int j=0;j<dim;j++){
             for(unsigned int A=0; A<dofs_per_elem; A++){
+              // xA     - nodeLocation
+              // Na     - basis_function
+              // dNa/ds - basis_gradient
+              //
+              // x = xA*NA(s1,s2)
+              // dx/dsj = xA*dNa/dsj = nodeLocation*basis_gradient[j]
               Jacobian[i][j] += nodeLocation[local_dof_indices[A]][i]
                  *basis_gradient(A,quad_points[q1],quad_points[q2])[j];
             }
@@ -368,6 +374,12 @@ void FEM<dim>::assemble_system(){
         for(unsigned int i=0;i<dim;i++){
           for(unsigned int j=0;j<dim;j++){
             for(unsigned int A=0; A<dofs_per_elem; A++){
+              // xA     - nodeLocation
+              // NA     - basis_function
+              // dNA/ds - basis_gradient
+              //
+              // x = xA*NA(s)
+              // dx/ds = xA*dNA/ds = nodeLocation*basis_gradient
               Jacobian[i][j] += nodeLocation[local_dof_indices[A]][i]
                 *basis_gradient(A,quad_points[q1],quad_points[q2])[j];
             }
@@ -382,6 +394,13 @@ void FEM<dim>::assemble_system(){
                 for(unsigned int I=0;I<dim;I++){
                   for(unsigned int J=0;J<dim;J++){
                     //EDIT - Define Klocal. You will need to use the inverse Jacobian ("invJacob") and "detJ"
+                    // int(w'*u'*dA) = sum((dNA/dsI*dsI/dxi) * (dNB/dsJ*dsJ/dxj) * det(J)*dsI*dsJ)
+                    // 
+                    // dNA/dsI = basis_gradient(A)[I]
+                    // dsI/dxJ = invJacob[I][i]
+                    Klocal[A][B] += basis_gradient(A,quad_points[q1],quad_points[q2])[I]*invJacob[I][i]*
+                                    basis_gradient(B,quad_points[q1],quad_points[q2])[J]*invJacob[J][j]*
+                                    detJ;
                   }
                 }
               }
@@ -396,6 +415,7 @@ void FEM<dim>::assemble_system(){
       //You would assemble F here if it were nonzero.
       for(unsigned int B=0; B<dofs_per_elem; B++){
         //EDIT - Assemble K from Klocal (you can look at HW2)
+        K.add(local_dof_indices[A], local_dof_indices[B], Klocal[A][B]);
       }
     }
 
