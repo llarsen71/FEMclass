@@ -356,7 +356,17 @@ void FEM<dim>::assemble_system(){
         */
       }
     }
-
+    
+    /*
+    for (unsigned int i=0; i<dim; i++) {
+      for (unsigned int j=0; j<dim; j++) {
+        std::cout << Jacobian[i][j] << " ";
+      }
+      std::cout << "\n";
+    }
+    std::cout << "\n";
+    */
+    
     //Loop over local DOFs and quadrature points to populate Klocal
     FullMatrix<double> invJacob(dim,dim), kappa(dim,dim);
 
@@ -387,6 +397,18 @@ void FEM<dim>::assemble_system(){
         }
         detJ = Jacobian.determinant();
         invJacob.invert(Jacobian);
+  
+        /*
+        for (unsigned int i=0; i < dim; i++){
+          for (unsigned int j=0; j < dim; j++) {
+            std::cout << invJacob[i][j] << " ";
+          }
+          std::cout << "\n";
+        }
+        
+        std::cout << "\n";
+        */
+
         for(unsigned int A=0; A<dofs_per_elem; A++){
           for(unsigned int B=0; B<dofs_per_elem; B++){
             for(unsigned int i=0;i<dim;i++){
@@ -398,9 +420,9 @@ void FEM<dim>::assemble_system(){
                     // 
                     // dNA/dsI = basis_gradient(A)[I]
                     // dsI/dxJ = invJacob[I][i]
-                    Klocal[A][B] += basis_gradient(A,quad_points[q1],quad_points[q2])[I]*invJacob[I][i]*
-                                    basis_gradient(B,quad_points[q1],quad_points[q2])[J]*invJacob[J][j]*
-                                    detJ;
+                    Klocal[A][B] += basis_gradient(A,quad_points[q1],quad_points[q2])[i] * invJacob[I][i] *                  // wi'
+                                    basis_gradient(B,quad_points[q1],quad_points[q2])[j] * invJacob[J][j] * kappa[J][j] *    // uj' kj
+                                    quad_weight[q1] * quad_weight[q2] * detJ;
                   }
                 }
               }
@@ -409,6 +431,15 @@ void FEM<dim>::assemble_system(){
         }
       }
     }
+    
+    for (unsigned int A=0; A < dofs_per_elem; A++){
+      for (unsigned int B=0; B < dofs_per_elem; B++) {
+        std::cout << Klocal[A][B] << " ";
+      }
+      std::cout << "\n";
+    }
+    
+    std::cout << "\n";
 
     //Assemble local K and F into global K and F
     for(unsigned int A=0; A<dofs_per_elem; A++){
