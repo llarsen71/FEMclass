@@ -247,8 +247,9 @@ void FEM<dim>::define_boundary_conds(){
     the global node number; the column index refers to the x or y component (0 or 1 for 2D).
     e.g. nodeLocation[7][1] is the y coordinate of global node 7*/
 
-  double x = 0.0;
   const unsigned int totalNodes = dof_handler.n_dofs(); //Total number of nodes
+
+  double x = 0.0;
   const double c0  = 1.0/3.0; // K/m
   const double c0h = 8.0;     // K/m2
   
@@ -296,7 +297,7 @@ void FEM<dim>::setup_system(){
 
   //Define quadrature rule - again, you decide what quad rule is needed
   // Exactly integrates polynomials of order 2*quadRule-1
-  quadRule = 3; //EDIT - Number of quadrature points along one dimension
+  quadRule = 4; //EDIT - Number of quadrature points along one dimension
   GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
