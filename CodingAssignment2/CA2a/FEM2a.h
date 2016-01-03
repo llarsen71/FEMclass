@@ -85,7 +85,7 @@ class FEM
   ~FEM();    //Class destructor
 
   //Function to find the value of xi at the given node (using deal.II node numbering)
-  double xi_at_node(unsigned int dealNode, unsigned int dimension);
+  void xi_at_node(unsigned int dealNode, double xi[]);
   //new
   double productFn(double xi[], unsigned int node, unsigned int dmn=10000000);
 
@@ -143,8 +143,7 @@ FEM<dim>::~FEM (){
 
 //Find the value of xi at the given node (0,1,2,...) and given dimension (0,1,2) (using deal.II node numbering)
 template <int dim>
-double FEM<dim>::xi_at_node(unsigned int dealNode, unsigned int dimension){
-  double xi;
+void FEM<dim>::xi_at_node(unsigned int dealNode, double xi[]){
   unsigned int groupnum, n_per_group;
   
   // Node 0: -1  1 -1  1 -1  1 -1  1
@@ -152,21 +151,26 @@ double FEM<dim>::xi_at_node(unsigned int dealNode, unsigned int dimension){
   // Node 2: -1 -1 -1 -1  1  1  1  1
   //
   // Configured for linear basis functions. Does not handle interior points.
-  n_per_group = pow(2, dimension);
-  groupnum = (dealNode/n_per_group) % 2;
+  for (unsigned int d=0; d<dim; d++) {
+    n_per_group = pow(2, d);
+    groupnum = (dealNode/n_per_group) % 2;
   
-  xi = (groupnum == 0) ? -1.0 : 1.0;
-  return xi;
+    xi[d] = (groupnum == 0) ? -1.0 : 1.0;
+  }
 }
+
 
 // Calculate the product function
 template <int dim>
 double FEM<dim>::productFn(double xi[], unsigned int node, unsigned int dmn){
   double value = 1.0;
+  double xin[dim];
+  xi_at_node(node, xin);
+  
   for (unsigned int d=0; d<dim; d++) {
     if (d == dmn) continue;
     // Only works for 1-d element
-    value *= (xi[d]-(-xi_at_node(node,d)));
+    value *= (xi[d]-(-xin[d]));
   }
   return value;
 }
@@ -179,12 +183,9 @@ double FEM<dim>::basis_function(unsigned int node, double xi_1, double xi_2){
     You need to calculate the value of the specified basis function and order at the given quadrature pt.*/
 
   double value = 0.; //Store the value of the basis function in this variable
-  double xi[dim], xin[dim];
-  
-  xi[0] = xi_1;
-  xi[1] = xi_2;
-  xin[0] = xi_at_node(node, 0);
-  xin[1] = xi_at_node(node, 1);
+  double xi[dim] = {xi_1, xi_2}, 
+         xin[dim];
+  xi_at_node(node, xin);
 
   //EDIT
   value = productFn(xi, node)/productFn(xin, node);
@@ -201,13 +202,12 @@ std::vector<double> FEM<dim>::basis_gradient(unsigned int node, double xi_1, dou
     Note that this is the derivative with respect to xi (not x)*/
 
   std::vector<double> values(dim,0.0); //Store the value of the gradient of the basis function in this variable
-  double xi[dim], xin[dim];
 
   //EDIT
-  xi[0] = xi_1;
-  xi[1] = xi_2;
-  xin[0] = xi_at_node(node, 0);
-  xin[1] = xi_at_node(node, 1);
+  double xi[dim] = {xi_1, xi_2}, 
+         xin[dim];
+  xi_at_node(node, xin);
+  
   for (unsigned int d=0; d<dim; d++){
     values[d] = productFn(xi, node, d)/productFn(xin, node); 
   }
