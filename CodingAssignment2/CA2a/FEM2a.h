@@ -296,7 +296,7 @@ void FEM<dim>::setup_system(){
 
   //Define quadrature rule - again, you decide what quad rule is needed
   // Exactly integrates polynomials of order 2*quadRule-1
-  quadRule = 6; //EDIT - Number of quadrature points along one dimension
+  quadRule = 3; //EDIT - Number of quadrature points along one dimension
   GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
@@ -420,8 +420,8 @@ void FEM<dim>::assemble_system(){
                     // 
                     // dNA/dsI = basis_gradient(A)[I]
                     // dsI/dxJ = invJacob[I][i]
-                    Klocal[A][B] += basis_gradient(A,quad_points[q1],quad_points[q2])[i] * invJacob[I][i] *                  // wi'
-                                    basis_gradient(B,quad_points[q1],quad_points[q2])[j] * invJacob[J][j] * kappa[J][j] *    // uj' kj
+                    Klocal[A][B] += basis_gradient(A,quad_points[q1],quad_points[q2])[I] * invJacob[I][i] *                  // wi'
+                                    basis_gradient(B,quad_points[q1],quad_points[q2])[J] * invJacob[J][j] * kappa[i][j] *    // uj' kij
                                     quad_weight[q1] * quad_weight[q2] * detJ;
                   }
                 }
@@ -432,6 +432,7 @@ void FEM<dim>::assemble_system(){
       }
     }
     
+    /*
     for (unsigned int A=0; A < dofs_per_elem; A++){
       for (unsigned int B=0; B < dofs_per_elem; B++) {
         std::cout << Klocal[A][B] << " ";
@@ -440,6 +441,7 @@ void FEM<dim>::assemble_system(){
     }
     
     std::cout << "\n";
+    */
 
     //Assemble local K and F into global K and F
     for(unsigned int A=0; A<dofs_per_elem; A++){
