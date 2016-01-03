@@ -308,7 +308,7 @@ void FEM<dim>::setup_system(){
   D.reinit (dof_handler.n_dofs());
 
   //Define quadrature rule - again, you decide what quad rule is needed
-  quadRule = 4; //EDIT - Number of quadrature points along one dimension
+  quadRule = 2; //EDIT - Number of quadrature points along one dimension
   GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
