@@ -38,8 +38,43 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
+#define EPS 3.0e-14
+#define PI  3.141592654
 
 using namespace dealii;
+
+void GaussianQuadraturePoints(int quadRule, std::vector<double> &quad_points, std::vector<double> &quad_weight) {
+  // Calculate Gauss Legendre quadrature points and weights
+  float x1 = -1.0, x2 = 1.0;
+  int m;
+  double z1, z, xm, xL, pp, p3,p2, p1;
+
+  quad_points.resize(quadRule); quad_weight.resize(quadRule);
+
+  m  = (quadRule+1)/2;         // Points are symmetric about midpoint. Just find half of them
+  xm = 0.5*(x2+x1);            // Midpoint
+  xL = 0.5*(x2-x1);            // Half interval
+  for (int i=1; i<=m; i++) {
+    z = cos(PI*(i-0.25)/(quadRule+0.5));  // Approximate root
+    do {
+      p1 = 1.0;
+      p2 = 0.0;
+      for (int j=1; j<=quadRule; j++) {
+        p3 = p2;
+        p2 = p1;
+        p1 = ((2.0*j-1.0)*z*p2-(j-1.0)*p3)/j;
+      }
+      pp = quadRule*(z*p1-p2)/(z*z-1.0);
+      z1 = z;
+      z  = z1-p1/pp;
+    } while(fabs(z-z1) > EPS);
+    
+    quad_points[i-1]        = xm-xL*z;
+    quad_points[quadRule-i] = xm+xL*z;
+    quad_weight[i-1]        = 2.0*xL/((1.0-z*z)*pp*pp);
+    quad_weight[quadRule-i] = quad_weight[i-1];
+  }
+}
 
 template <int dim>
 class FEM
@@ -49,15 +84,22 @@ class FEM
   FEM();  // Class constructor 
   ~FEM(); //Class destructor
 
+  const unsigned int X=0, Y=1, Z=2;
+  
+  //Function to find the values of xi at the given node (using deal.II node numbering)
+  void xi_at_node(unsigned int dealNode, double xi[dim]);
+  //new
+  double productFn(double xi[], unsigned int node, unsigned int dmn=10000000);
+
   //Define your 2D basis functions and derivatives
   double basis_function(unsigned int node, 
-			double xi_1,
-			double xi_2,
-			double xi_3);
+                        double xi_1,
+                        double xi_2,
+                        double xi_3);
   std::vector<double> basis_gradient(unsigned int node, 
-				     double xi_1,
-				     double xi_2,
-				     double xi_3);
+                                     double xi_1,
+                                     double xi_2,
+                                     double xi_3);
 
   //Solution steps
   void generate_mesh(std::vector<unsigned int> numberOfElements);
@@ -69,19 +111,19 @@ class FEM
 
   //Class objects
   Triangulation<dim>   triangulation; //mesh
-  FESystem<dim>        fe; 	      //FE element
+  FESystem<dim>        fe;            //FE element
   DoFHandler<dim>      dof_handler;   //Connectivity matrices
 
   //Gaussian quadrature - These will be defined in setup_system()
-  unsigned int	      quadRule;    //quadrature rule, i.e. number of quadrature points
+  unsigned int        quadRule;    //quadrature rule, i.e. number of quadrature points
   std::vector<double> quad_points; //vector of Gauss quadrature points
   std::vector<double> quad_weight; //vector of the quadrature point weights
     
   //Data structures
-  SparsityPattern    	        sparsity_pattern; //Sparse matrix pattern
-  SparseMatrix<double>	        K; 		  //Global stiffness (sparse) matrix
-  Vector<double>       	        D, F; 		  //Global vectors - Solution vector (D) and Global force vector (F)
-  Table<2,double>	        nodeLocation;     //Table of the coordinates of nodes by global dof number
+  SparsityPattern               sparsity_pattern; //Sparse matrix pattern
+  SparseMatrix<double>          K;                //Global stiffness (sparse) matrix
+  Vector<double>                D, F;             //Global vectors - Solution vector (D) and Global force vector (F)
+  Table<2,double>               nodeLocation;     //Table of the coordinates of nodes by global dof number
   std::map<unsigned int,double> boundary_values;  //Map of dirichlet boundary conditions 
 
   //solution name array
@@ -107,6 +149,39 @@ FEM<dim>::~FEM (){
   dof_handler.clear ();
 }
 
+//Find the value of xi at the given node (0,1,2,...) and given dimension (0,1,2) (using deal.II node numbering)
+template <int dim>
+void FEM<dim>::xi_at_node(unsigned int dealNode, double xi[]){
+  unsigned int groupnum, n_per_group;
+  
+  // Node 0: -1  1 -1  1 -1  1 -1  1
+  // Node 1: -1 -1  1  1 -1 -1  1  1
+  // Node 2: -1 -1 -1 -1  1  1  1  1
+  //
+  // Configured for linear basis functions. Does not handle interior points.
+  for (unsigned int d=0; d<dim; d++) {
+    n_per_group = pow(2, d);
+    groupnum = (dealNode/n_per_group) % 2;
+  
+    xi[d] = (groupnum == 0) ? -1.0 : 1.0;
+  }
+}
+
+// Calculate the product function
+template <int dim>
+double FEM<dim>::productFn(double xi[], unsigned int node, unsigned int dmn){
+  double value = 1.0;
+  double xin[dim];
+  xi_at_node(node, xin);
+  
+  for (unsigned int d=0; d<dim; d++) {
+    if (d == dmn) continue;
+    // Only works for 1-d element
+    value *= (xi[d]-(-xin[d]));
+  }
+  return value;
+}
+
 //Define basis functions
 template <int dim>
 double FEM<dim>::basis_function(unsigned int node, double xi_1, double xi_2, double xi_3){
@@ -117,6 +192,11 @@ double FEM<dim>::basis_function(unsigned int node, double xi_1, double xi_2, dou
   double value = 0.; //Store the value of the basis function in this variable
 
   //EDIT
+  double xi[dim] = {xi_1, xi_2, xi_3}, 
+         xin[dim];
+  xi_at_node(node, xin);
+
+  value = productFn(xi, node)/productFn(xin, node);
 
   return value;
 }
@@ -132,6 +212,13 @@ std::vector<double> FEM<dim>::basis_gradient(unsigned int node, double xi_1, dou
   std::vector<double> values(dim,0.0); //Store the value of the gradient of the basis function in this variable
 
   //EDIT
+  double xi[dim] = {xi_1, xi_2, xi_3}, 
+         xin[dim];
+  xi_at_node(node, xin);
+  
+  for (unsigned int d=0; d<dim; d++){
+    values[d] = productFn(xi, node, d)/productFn(xin, node); 
+  }
 
   return values;
 }
@@ -141,15 +228,15 @@ template <int dim>
 void FEM<dim>::generate_mesh(std::vector<unsigned int> numberOfElements){
 
   //Define the limits of your domain
-  double x_min = , //EDIT - define the left limit of the domain, etc.
-    x_max = , //EDIT
-    y_min = , //EDIT
-    y_max = , //EDIT
-    z_min = , //EDIT
-    z_max = ; //EDIT
+  double x_min = 0.0,  //EDIT - define the left limit of the domain, etc.
+         x_max = 0.04, //EDIT
+         y_min = 0.0,  //EDIT
+         y_max = 0.08, //EDIT
+         z_min = 0.0,  //EDIT
+         z_max = 0.02; //EDIT
 
   Point<dim,double> min(x_min,y_min,z_min),
-    max(x_max,y_max,z_max);
+                    max(x_max,y_max,z_max);
   GridGenerator::subdivided_hyper_rectangle (triangulation, numberOfElements, min, max);
 }
 
@@ -158,7 +245,7 @@ template <int dim>
 void FEM<dim>::define_boundary_conds(){
 
   //EDIT - Define the Dirichlet boundary conditions.
-	
+
   /*Note: this will be very similiar to the define_boundary_conds function
     in the HW2 template. You will loop over all nodes and use "nodeLocations"
     to check if the node is on the boundary with a Dirichlet condition. If it is,
@@ -172,6 +259,22 @@ void FEM<dim>::define_boundary_conds(){
     e.g. nodeLocation[7][2] is the z coordinate of global node 7*/
 
   const unsigned int totalNodes = dof_handler.n_dofs(); //Total number of nodes
+
+  double y = 0.0, z = 0.0;
+  const double c0 = 1.0/3.0; // K/m
+  
+  for (unsigned int i=0; i<totalNodes; i++) {
+    if (nodeLocation[i][X] == 0.0) {
+      y = nodeLocation[i][Y];
+      z = nodeLocation[i][Z];
+      boundary_values[i] = 300*(1+c0*(y+z)); // K
+    }
+    if (nodeLocation[i][X] == 0.04) {
+      y = nodeLocation[i][Y];
+      z = nodeLocation[i][Z];
+      boundary_values[i] = 310*(1+c0*(y+z)); // K
+    }
+  }
 }
 
 //Setup data structures (sparse matrix, vectors)
@@ -197,7 +300,7 @@ void FEM<dim>::setup_system(){
 
   //Define the size of the global matrices and vectors
   sparsity_pattern.reinit (dof_handler.n_dofs(), dof_handler.n_dofs(),
-			   dof_handler.max_couplings_between_dofs());
+                           dof_handler.max_couplings_between_dofs());
   DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern);
   sparsity_pattern.compress();
   K.reinit (sparsity_pattern);
@@ -205,14 +308,8 @@ void FEM<dim>::setup_system(){
   D.reinit (dof_handler.n_dofs());
 
   //Define quadrature rule - again, you decide what quad rule is needed
-  quadRule = 2; //EDIT - Number of quadrature points along one dimension
-  quad_points.resize(quadRule); quad_weight.resize(quadRule);
-
-  quad_points[0] = -sqrt(1./3.); //EDIT
-  quad_points[1] = sqrt(1./3.); //EDIT
-
-  quad_weight[0] = 1.; //EDIT
-  quad_weight[1] = 1.; //EDIT
+  quadRule = 4; //EDIT - Number of quadrature points along one dimension
+  GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
   std::cout << "   Number of active elems:       " << triangulation.n_active_cells() << std::endl;
@@ -225,9 +322,9 @@ void FEM<dim>::assemble_system(){
 
   K=0; F=0;
 
-  const unsigned int  	    dofs_per_elem = fe.dofs_per_cell; //This gives you number of degrees of freedom per element
-  FullMatrix<double> 	    Klocal (dofs_per_elem, dofs_per_elem);
-  Vector<double>      	    Flocal (dofs_per_elem);
+  const unsigned int        dofs_per_elem = fe.dofs_per_cell; //This gives you number of degrees of freedom per element
+  FullMatrix<double>        Klocal (dofs_per_elem, dofs_per_elem);
+  Vector<double>            Flocal (dofs_per_elem);
   std::vector<unsigned int> local_dof_indices (dofs_per_elem);
 
   //loop over elements  
@@ -248,21 +345,24 @@ void FEM<dim>::assemble_system(){
     Flocal = 0.;
     for(unsigned int q1=0; q1<quadRule; q1++){
       for(unsigned int q2=0; q2<quadRule; q2++){
-	for(unsigned int q3=0; q3<quadRule; q3++){
-	  Jacobian = 0.;
-	  for(unsigned int i=0;i<dim;i++){
-	    for(unsigned int j=0;j<dim;j++){
-	      for(unsigned int A=0; A<dofs_per_elem; A++){
-		Jacobian[i][j] += nodeLocation[local_dof_indices[A]][i]
-		  *basis_gradient(A,quad_points[q1],quad_points[q2],quad_points[q3])[j];
-	      }
-	    }
-	  }
-	  detJ = Jacobian.determinant();
-	  for(unsigned int A=0; A<dofs_per_elem; A++){
-	    //You would define Flocal here if it were nonzero.
-	  }
-	}
+        for(unsigned int q3=0; q3<quadRule; q3++){
+          Jacobian = 0.;
+          for(unsigned int i=0;i<dim;i++){
+            for(unsigned int j=0;j<dim;j++){
+              for(unsigned int A=0; A<dofs_per_elem; A++){
+                Jacobian[i][j] += nodeLocation[local_dof_indices[A]][i]
+                  *basis_gradient(A,quad_points[q1],quad_points[q2],quad_points[q3])[j];
+              }
+            }
+          }
+          
+          /*
+          detJ = Jacobian.determinant();
+          for(unsigned int A=0; A<dofs_per_elem; A++){
+            //You would define Flocal here if it were nonzero.
+          }
+          */
+        }
       }
     }
 
@@ -279,44 +379,51 @@ void FEM<dim>::assemble_system(){
     Klocal = 0.;
     for(unsigned int q1=0; q1<quadRule; q1++){
       for(unsigned int q2=0; q2<quadRule; q2++){
-	for(unsigned int q3=0; q3<quadRule; q3++){
-	  //Find the Jacobian at a quadrature point
-	  Jacobian = 0.;
-	  for(unsigned int i=0;i<dim;i++){
-	    for(unsigned int j=0;j<dim;j++){
-	      for(unsigned int A=0; A<dofs_per_elem; A++){
-		Jacobian[i][j] += nodeLocation[local_dof_indices[A]][i]
-		  *basis_gradient(A,quad_points[q1],quad_points[q2],quad_points[q3])[j];
-	      }
-	    }
-	  }
-	  detJ = Jacobian.determinant();
-	  invJacob.invert(Jacobian);
-	  for(unsigned int A=0; A<dofs_per_elem; A++){
-	    for(unsigned int B=0; B<dofs_per_elem; B++){
-	      for(unsigned int i=0;i<dim;i++){
-		for(unsigned int j=0;j<dim;j++){
-		  for(unsigned int I=0;I<dim;I++){
-		    for(unsigned int J=0;J<dim;J++){
-		      //EDIT - Define Klocal. You will need to use the inverse Jacobian ("invJacob") and "detJ"
-		    }
-		  }
-		}
-	      }
-	    }
-	  }
-	}
+        for(unsigned int q3=0; q3<quadRule; q3++){
+          //Find the Jacobian at a quadrature point
+          Jacobian = 0.;
+          for(unsigned int i=0;i<dim;i++){
+            for(unsigned int j=0;j<dim;j++){
+              for(unsigned int A=0; A<dofs_per_elem; A++){
+                Jacobian[i][j] += nodeLocation[local_dof_indices[A]][i]
+                  *basis_gradient(A,quad_points[q1],quad_points[q2],quad_points[q3])[j];
+              }
+            }
+          }
+          detJ = Jacobian.determinant();
+          invJacob.invert(Jacobian);
+          for(unsigned int A=0; A<dofs_per_elem; A++){
+            for(unsigned int B=0; B<dofs_per_elem; B++){
+              for(unsigned int i=0;i<dim;i++){
+                for(unsigned int j=0;j<dim;j++){
+                  for(unsigned int I=0;I<dim;I++){
+                    for(unsigned int J=0;J<dim;J++){
+                      //EDIT - Define Klocal. You will need to use the inverse Jacobian ("invJacob") and "detJ"
+                      // int(w'*u'*dA) = sum((dNA/dsI*dsI/dxi) * (dNB/dsJ*dsJ/dxj) * det(J)*dsI*dsJ)
+                      // 
+                      // dNA/dsI = basis_gradient(A)[I]
+                      // dsI/dxJ = invJacob[I][i]
+                      Klocal[A][B] += basis_gradient(A,quad_points[q1],quad_points[q2],quad_points[q3])[I] * invJacob[I][i] *                  // wi'
+                                      basis_gradient(B,quad_points[q1],quad_points[q2],quad_points[q3])[J] * invJacob[J][j] * kappa[i][j] *    // uj' kij
+                                      quad_weight[q1] * quad_weight[q2] * quad_weight[q3] * detJ;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
-    }	
+    }
 
     //Assemble local K and F into global K and F
     for(unsigned int A=0; A<dofs_per_elem; A++){
       //You would assemble F here if it were nonzero.
       for(unsigned int B=0; B<dofs_per_elem; B++){
-	//EDIT - Assemble K from Klocal (you can look at HW2)
+        //EDIT - Assemble K from Klocal (you can look at HW2)
+        K.add(local_dof_indices[A], local_dof_indices[B], Klocal[A][B]);
       }
     }
-
   }
 
   //Apply Dirichlet boundary conditions
@@ -345,7 +452,7 @@ void FEM<dim>::output_results (){
 
   //Add nodal DOF data
   data_out.add_data_vector(D, nodal_solution_names, DataOut<dim>::type_dof_data,
-			   nodal_data_component_interpretation);
+                           nodal_data_component_interpretation);
   data_out.build_patches();
   data_out.write_vtk(output1);
   output1.close();
