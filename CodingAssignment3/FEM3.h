@@ -276,7 +276,7 @@ void FEM<dim>::assemble_system(){
               for (unsigned int j = 0; j<dim; j++){
                 for (unsigned int l = 0; l<dim; l++){
                   /*//EDIT - You need to define Klocal here. Note that the indices of Klocal are the element dof numbers (0 through 23),
-                    which you can caluclate from the element node numbers (0 through 8) and the nodal dofs (0 through 2).
+                    which you can calculate from the element node numbers (0 through 8) and the nodal dofs (0 through 2).
                     You'll need the following information:
                     basis gradient vector: fe_values.shape_grad(elementDOF,q), where elementDOF is dim*A+i or dim*B+k
                     NOTE: this is the gradient with respect to the real domain (not the bi-unit domain)
