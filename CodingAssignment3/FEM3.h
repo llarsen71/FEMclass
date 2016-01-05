@@ -39,11 +39,46 @@
 #include <fstream>
 #include <math.h>
 using namespace dealii;
+#define EPS 3.0e-14
+#define PI  3.141592654
 
 //Define the order of the basis functions (Lagrange polynomials)
 //and the order of the quadrature rule globally
 const unsigned int order = 1;
 const unsigned int quadRule = 2;
+
+void GaussianQuadraturePoints(int quadRule, std::vector<double> &quad_points, std::vector<double> &quad_weight) {
+  // Calculate Gauss Legendre quadrature points and weights
+  float x1 = -1.0, x2 = 1.0;
+  int m;
+  double z1, z, xm, xL, pp, p3,p2, p1;
+
+  quad_points.resize(quadRule); quad_weight.resize(quadRule);
+
+  m  = (quadRule+1)/2;         // Points are symmetric about midpoint. Just find half of them
+  xm = 0.5*(x2+x1);            // Midpoint
+  xL = 0.5*(x2-x1);            // Half interval
+  for (int i=1; i<=m; i++) {
+    z = cos(PI*(i-0.25)/(quadRule+0.5));  // Approximate root
+    do {
+      p1 = 1.0;
+      p2 = 0.0;
+      for (int j=1; j<=quadRule; j++) {
+        p3 = p2;
+        p2 = p1;
+        p1 = ((2.0*j-1.0)*z*p2-(j-1.0)*p3)/j;
+      }
+      pp = quadRule*(z*p1-p2)/(z*z-1.0);
+      z1 = z;
+      z  = z1-p1/pp;
+    } while(fabs(z-z1) > EPS);
+    
+    quad_points[i-1]        = xm-xL*z;
+    quad_points[quadRule-i] = xm+xL*z;
+    quad_weight[i-1]        = 2.0*xL/((1.0-z*z)*pp*pp);
+    quad_weight[quadRule-i] = quad_weight[i-1];
+  }
+}
 
 template <int dim>
 class FEM
@@ -78,7 +113,7 @@ class FEM
   SparseMatrix<double> K;                //Global stiffness matrix - Sparse matrix - used in the solver
   Vector<double>       D, F;             //Global vectors - Solution vector (D) and Global force vector (F)
 
-  Table<2,double>	        dofLocation;	 //Table of the coordinates of dofs by global dof number
+  Table<2,double>               dofLocation;      //Table of the coordinates of dofs by global dof number
   std::map<unsigned int,double> boundary_values; //Map of dirichlet boundary conditions
 
   //solution name array
@@ -94,8 +129,8 @@ fe (FE_Q<dim>(order), dim),
   dof_handler (triangulation),
   quadrature_formula(quadRule),
   face_quadrature_formula(quadRule)
-{	
-	
+{
+
   //Nodal Solution names - this is for writing the output file
   for (unsigned int i=0; i<dim; ++i){
     nodal_solution_names.push_back("u");
@@ -143,12 +178,12 @@ template <int dim>
 void FEM<dim>::define_boundary_conds(){
 
   //EDIT - Define the Dirichlet boundary conditions.
-	
+
   /*Note: this will be very similiar to the define_boundary_conds function
     in the HW2 template. You will loop over all degrees of freedom and use "dofLocation"
     to check if the dof is on the boundary with a Dirichlet condition.
 
-    (Aside: Since we	now have more than 1 dof per node, it is possible to apply a different Dirichlet
+    (Aside: Since we now have more than 1 dof per node, it is possible to apply a different Dirichlet
     condition on each of the 3 dofs on the same node. Note that this is NOT the case for the current 
     assignment. But if you wanted to do it, you would need to check
     the nodal dof (0, 1, or 2) as well as the location. For example, if you wanted to fix displacements
@@ -193,8 +228,8 @@ void FEM<dim>::setup_system(){
 
   //Define the size of the global matrices and vectors
   sparsity_pattern.reinit (dof_handler.n_dofs(), 
-			   dof_handler.n_dofs(),
-			   dof_handler.max_couplings_between_dofs());
+                           dof_handler.n_dofs(),
+                           dof_handler.max_couplings_between_dofs());
   DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern);
   sparsity_pattern.compress();
   K.reinit (sparsity_pattern);
@@ -211,23 +246,23 @@ template <int dim>
 void FEM<dim>::assemble_system(){
 
   /*NEW - deal.II basis functions, etc. The third input values (after fe and quadrature_formula) 
-    specify what information we	want to be updated. For fe_values, we need the basis function values,
-    basis function gradients,	and det(Jacobian) times the quadrature weights (JxW). For fe_face_values,
+    specify what information we want to be updated. For fe_values, we need the basis function values,
+    basis function gradients, and det(Jacobian) times the quadrature weights (JxW). For fe_face_values,
     we need the basis function values, the value of x at the quadrature points, and JxW.*/
 
   //For volume integration/quadrature points
   FEValues<dim> fe_values (fe,
-			   quadrature_formula, 
-			   update_values | 
-			   update_gradients | 
-			   update_JxW_values);
+                           quadrature_formula, 
+                           update_values | 
+                           update_gradients | 
+                           update_JxW_values);
 
   //For surface integration/quadrature points
   FEFaceValues<dim> fe_face_values (fe,
-				    face_quadrature_formula, 
-				    update_values | 
-				    update_quadrature_points | 
-				    update_JxW_values);
+                                    face_quadrature_formula, 
+                                    update_values | 
+                                    update_quadrature_points | 
+                                    update_JxW_values);
 
   K=0; F=0;
 
@@ -250,7 +285,7 @@ void FEM<dim>::assemble_system(){
 
     //Retrieve the effective "connectivity matrix" for this element
     elem->get_dof_indices (local_dof_indices);
-		
+
     /*Global Assembly - 
       Get the current Flocal and Klocal from the functions you wrote above 
       and populate F_assembly and K_assembly using local_dof_indices to relate local and global DOFs.*/
@@ -261,23 +296,23 @@ void FEM<dim>::assemble_system(){
     for (unsigned int q=0; q<num_quad_pts; ++q){
       //evaluate elemental stiffness matrix, K^{AB}_{ik} = \integral N^A_{,j}*C_{ijkl}*N^B_{,l} dV 
       for (unsigned int A=0; A<nodes_per_elem; A++) { //Loop over nodes
-	for(unsigned int i=0; i<dim; i++){ //Loop over nodal dofs
-	  for (unsigned int B=0; B<nodes_per_elem; B++) {
-	    for(unsigned int k=0; k<dim; k++){
-	      for (unsigned int j = 0; j<dim; j++){
-		for (unsigned int l = 0; l<dim; l++){
-		  /*//EDIT - You need to define Klocal here. Note that the indices of Klocal are the element dof numbers (0 through 23),
-		    which you can caluclate from the element node numbers (0 through 8) and the nodal dofs (0 through 2).
-		    You'll need the following information:
-		    basis gradient vector: fe_values.shape_grad(elementDOF,q), where elementDOF is dim*A+i or dim*B+k
-		    NOTE: this is the gradient with respect to the real domain (not the bi-unit domain)
-		    elasticity tensor: use the function C(i,j,k,l)
-		    det(J) times the total quadrature weight: fe_values.JxW(q)*/
-		}
-	      }
-	    }
-	  }
-	}
+        for(unsigned int i=0; i<dim; i++){ //Loop over nodal dofs
+          for (unsigned int B=0; B<nodes_per_elem; B++) {
+            for(unsigned int k=0; k<dim; k++){
+              for (unsigned int j = 0; j<dim; j++){
+                for (unsigned int l = 0; l<dim; l++){
+                  /*//EDIT - You need to define Klocal here. Note that the indices of Klocal are the element dof numbers (0 through 23),
+                    which you can caluclate from the element node numbers (0 through 8) and the nodal dofs (0 through 2).
+                    You'll need the following information:
+                    basis gradient vector: fe_values.shape_grad(elementDOF,q), where elementDOF is dim*A+i or dim*B+k
+                    NOTE: this is the gradient with respect to the real domain (not the bi-unit domain)
+                    elasticity tensor: use the function C(i,j,k,l)
+                    det(J) times the total quadrature weight: fe_values.JxW(q)*/
+                }
+              }
+            }
+          }
+        }
       }
     }
 
@@ -293,24 +328,24 @@ void FEM<dim>::assemble_system(){
       //Update fe_face_values from current element and face
       fe_face_values.reinit (elem, f);
       /*elem->face(f)->center() gives a position vector (in the real domain) of the center point on face f
-	of the current element. We can use it to see if we are at the Neumann boundary, x_3 = 1.*/
+        of the current element. We can use it to see if we are at the Neumann boundary, x_3 = 1.*/
       if(elem->face(f)->center()[2] == 1){
-	//To integrate over this face, loop over all face quadrature points with this single loop
-	for (unsigned int q=0; q<num_face_quad_pts; ++q){
-	  double x = fe_face_values.quadrature_point(q)[0]; //x-coordinate at the current surface quad. point
-	  //EDIT - define the value of the traction vector, h
-	  for (unsigned int A=0; A<nodes_per_elem; A++){ //loop over all element nodes
-	    for(unsigned int i=0; i<dim; i++){ //loop over nodal dofs
-	      /*//EDIT - define Flocal. Again, the indices of Flocal are the element dof numbers (0 through 23).
-		Evaluate the basis functions using the elementDOF: fe_face_values.shape_value(elementDOF,q)
+        //To integrate over this face, loop over all face quadrature points with this single loop
+        for (unsigned int q=0; q<num_face_quad_pts; ++q){
+          double x = fe_face_values.quadrature_point(q)[0]; //x-coordinate at the current surface quad. point
+          //EDIT - define the value of the traction vector, h
+          for (unsigned int A=0; A<nodes_per_elem; A++){ //loop over all element nodes
+            for(unsigned int i=0; i<dim; i++){ //loop over nodal dofs
+              /*//EDIT - define Flocal. Again, the indices of Flocal are the element dof numbers (0 through 23).
+                Evaluate the basis functions using the elementDOF: fe_face_values.shape_value(elementDOF,q)
 
-		Note that we are looping over all element dofs, not just those on the Neumann face. However,
-		the face quadrature points are only on the Neumann face, so we are indeed doing a surface integral.
+                Note that we are looping over all element dofs, not just those on the Neumann face. However,
+                the face quadrature points are only on the Neumann face, so we are indeed doing a surface integral.
 
-		For det(J) times the total quadrature weight: fe_face_values.JxW(q)*/
-	    }
-	  }
-	}
+                For det(J) times the total quadrature weight: fe_face_values.JxW(q)*/
+            }
+          }
+        }
       }
     }
 
@@ -318,7 +353,7 @@ void FEM<dim>::assemble_system(){
     for(unsigned int i=0; i<dofs_per_elem; i++){
       //EDIT - Assemble F from Flocal (you can look at HW2)
       for(unsigned int j=0; j<dofs_per_elem; j++){
-	//EDIT - Assemble K from Klocal (you can look at HW2)
+        //EDIT - Assemble K from Klocal (you can look at HW2)
       }
     }
   }
@@ -348,9 +383,9 @@ void FEM<dim>::output_results (){
 
   //Add nodal DOF data
   data_out.add_data_vector (D,
-			    nodal_solution_names,
-			    DataOut<dim>::type_dof_data,
-			    nodal_data_component_interpretation);
+                            nodal_solution_names,
+                            DataOut<dim>::type_dof_data,
+                            nodal_data_component_interpretation);
   data_out.build_patches();
   data_out.write_vtk(output1);
   output1.close();

@@ -17,20 +17,20 @@ int main (){
   try{
     deallog.depth_console (0);
 
-		const int dimension = 3;
+    const int dimension = 3;
 
-		//NOTE: This is where you define the number of elements in the mesh
-		std::vector<unsigned int> num_of_elems(dimension);
-		num_of_elems[0] = 10;
-		num_of_elems[1] = 10;
-		num_of_elems[2] = 10; //For example, a 10 x 10 x 10 element mesh
+    //NOTE: This is where you define the number of elements in the mesh
+    std::vector<unsigned int> num_of_elems(dimension);
+    num_of_elems[0] = 5;
+    num_of_elems[1] = 5;
+    num_of_elems[2] = 5; //For example, a 10 x 10 x 10 element mesh
 
     FEM<dimension> problemObject;
-		problemObject.generate_mesh(num_of_elems);
-	  problemObject.setup_system();
-	  problemObject.assemble_system();
-	  problemObject.solve();
-	  problemObject.output_results();
+    problemObject.generate_mesh(num_of_elems);
+    problemObject.setup_system();
+    problemObject.assemble_system();
+    problemObject.solve();
+    problemObject.output_results();
     
     //write solutions to h5 file
     char tag[21];
@@ -40,24 +40,24 @@ int main (){
   }
   catch (std::exception &exc){
     std::cerr << std::endl << std::endl
-	      << "----------------------------------------------------"
-	      << std::endl;
+              << "----------------------------------------------------"
+              << std::endl;
     std::cerr << "Exception on processing: " << std::endl
-	      << exc.what() << std::endl
-	      << "Aborting!" << std::endl
-	      << "----------------------------------------------------"
-	      << std::endl;
+              << exc.what() << std::endl
+              << "Aborting!" << std::endl
+              << "----------------------------------------------------"
+              << std::endl;
 
     return 1;
   }
   catch (...){
     std::cerr << std::endl << std::endl
-	      << "----------------------------------------------------"
-	      << std::endl;
+              << "----------------------------------------------------"
+              << std::endl;
     std::cerr << "Unknown exception!" << std::endl
-	      << "Aborting!" << std::endl
-	      << "----------------------------------------------------"
-	      << std::endl;
+              << "Aborting!" << std::endl
+              << "----------------------------------------------------"
+              << std::endl;
     return 1;
   }
 
