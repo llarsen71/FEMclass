@@ -39,46 +39,11 @@
 #include <fstream>
 #include <math.h>
 using namespace dealii;
-#define EPS 3.0e-14
-#define PI  3.141592654
 
 //Define the order of the basis functions (Lagrange polynomials)
 //and the order of the quadrature rule globally
 const unsigned int order = 1;
 const unsigned int quadRule = 2;
-
-void GaussianQuadraturePoints(int quadRule, std::vector<double> &quad_points, std::vector<double> &quad_weight) {
-  // Calculate Gauss Legendre quadrature points and weights
-  float x1 = -1.0, x2 = 1.0;
-  int m;
-  double z1, z, xm, xL, pp, p3,p2, p1;
-
-  quad_points.resize(quadRule); quad_weight.resize(quadRule);
-
-  m  = (quadRule+1)/2;         // Points are symmetric about midpoint. Just find half of them
-  xm = 0.5*(x2+x1);            // Midpoint
-  xL = 0.5*(x2-x1);            // Half interval
-  for (int i=1; i<=m; i++) {
-    z = cos(PI*(i-0.25)/(quadRule+0.5));  // Approximate root
-    do {
-      p1 = 1.0;
-      p2 = 0.0;
-      for (int j=1; j<=quadRule; j++) {
-        p3 = p2;
-        p2 = p1;
-        p1 = ((2.0*j-1.0)*z*p2-(j-1.0)*p3)/j;
-      }
-      pp = quadRule*(z*p1-p2)/(z*z-1.0);
-      z1 = z;
-      z  = z1-p1/pp;
-    } while(fabs(z-z1) > EPS);
-    
-    quad_points[i-1]        = xm-xL*z;
-    quad_points[quadRule-i] = xm+xL*z;
-    quad_weight[i-1]        = 2.0*xL/((1.0-z*z)*pp*pp);
-    quad_weight[quadRule-i] = quad_weight[i-1];
-  }
-}
 
 template <int dim>
 class FEM
@@ -147,13 +112,12 @@ template <int dim>
 double FEM<dim>::C(unsigned int i,unsigned int j,unsigned int k,unsigned int l){
 
   //Define the material parameters of Young's modulus and Poisson's ratio
-  double E= ,  //EDIT
-    nu= ; //EDIT
+  double E = 2.0e11, // Pa  //EDIT
+    nu = 0.3; //EDIT
   double lambda=(E*nu)/((1.+nu)*(1.-2.*nu)),
     mu=E/(2.*(1.+nu));
 
   return lambda*(i==j)*(k==l) + mu*((i==k)*(j==l) + (i==l)*(j==k));
-
 }
 
 //Define the problem domain and generate the mesh
@@ -161,15 +125,15 @@ template <int dim>
 void FEM<dim>::generate_mesh(std::vector<unsigned int> numberOfElements){
 
   //Define the limits of your domain
-  double x_min = , //EDIT
-    x_max = , //EDIT
-    y_min = , //EDIT
-    y_max = , //EDIT
-    z_min = , //EDIT
-    z_max = ; //EDIT
+  double x_min = 0.0, //EDIT
+    x_max = 0.1, //EDIT
+    y_min = 0.0, //EDIT
+    y_max = 0.1, //EDIT
+    z_min = 0.0, //EDIT
+    z_max = 0.1; //EDIT
 
   Point<dim,double> min(x_min,y_min,z_min),
-    max(x_max,y_max,z_max);
+                    max(x_max,y_max,z_max);
   GridGenerator::subdivided_hyper_rectangle (triangulation, numberOfElements, min, max);
 }
 
@@ -203,6 +167,12 @@ void FEM<dim>::define_boundary_conds(){
     e.g. dofLocation[7][2] is the z-coordinate of global dof 7*/
 
   const unsigned int totalDOFs = dof_handler.n_dofs(); //Total number of degrees of freedom
+  
+  for (unsigned int i=0; i<totalDOFs; i++) {
+    if (nodeLocation[i][2] == 0.0) {
+      boundary_values[i] = 0.0; // m
+    }
+  }
 }
 
 //Setup data structures (sparse matrix, vectors)
@@ -235,6 +205,10 @@ void FEM<dim>::setup_system(){
   K.reinit (sparsity_pattern);
   D.reinit(dof_handler.n_dofs());
   F.reinit(dof_handler.n_dofs());
+
+  //Define quadrature rule - again, you decide what quad rule is needed
+  quadRule = 2; //EDIT - Number of quadrature points along one dimension
+  GaussianQuadraturePoints(quadRule,quad_points,quad_weight);
 
   //Just some notes...
   std::cout << "   Number of active elems:       " << triangulation.n_active_cells() << std::endl;
@@ -308,6 +282,7 @@ void FEM<dim>::assemble_system(){
                     NOTE: this is the gradient with respect to the real domain (not the bi-unit domain)
                     elasticity tensor: use the function C(i,j,k,l)
                     det(J) times the total quadrature weight: fe_values.JxW(q)*/
+                  Klocal[A][B] += fe_values.shape_grad(dim*A+i,q) * C(i,j,k,l) * fe_values.shape_grad(dim*B+k,q) * fe_values.JxW(q);
                 }
               }
             }
@@ -343,6 +318,7 @@ void FEM<dim>::assemble_system(){
                 the face quadrature points are only on the Neumann face, so we are indeed doing a surface integral.
 
                 For det(J) times the total quadrature weight: fe_face_values.JxW(q)*/
+              
             }
           }
         }
@@ -354,6 +330,7 @@ void FEM<dim>::assemble_system(){
       //EDIT - Assemble F from Flocal (you can look at HW2)
       for(unsigned int j=0; j<dofs_per_elem; j++){
         //EDIT - Assemble K from Klocal (you can look at HW2)
+        K.add(local_dof_indices[A], local_dof_indices[B], Klocal[A][B]);
       }
     }
   }
