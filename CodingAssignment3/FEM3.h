@@ -216,7 +216,7 @@ void FEM<dim>::setup_system(){
 //Form elmental vectors and matrices and assemble to the global vector (F) and matrix (K)
 template <int dim>
 void FEM<dim>::assemble_system(){
-  double A_, B_, eps_kl;
+  double Ai, Bk;
   /*NEW - deal.II basis functions, etc. The third input values (after fe and quadrature_formula) 
     specify what information we want to be updated. For fe_values, we need the basis function values,
     basis function gradients, and det(Jacobian) times the quadrature weights (JxW). For fe_face_values,
@@ -266,7 +266,10 @@ void FEM<dim>::assemble_system(){
     //Loop over local DOFs and quadrature points to populate Klocal
     //Note that all quadrature points are included in this single loop
     for (unsigned int q=0; q<num_quad_pts; ++q){
-      //evaluate elemental stiffness matrix, K^{AB}_{ik} = \integral N^A_{,j}*C_{ijkl}*N^B_{,l} dV 
+      //evaluate elemental stiffness matrix, K^{AB}_{ik} = \integral N^Ai{,j}*C_{ijkl}*N^Bk{,l} dV
+      // Note because of symmetry C_{ijkl}=C_{ijlk}:
+      //             C_{ijkl}*epsilon =
+      //             C_{ijkl}*1/2*(N^Bk_l+N^Bl_k) = C_{ijkl}*N^Bk_l     
       for (unsigned int A=0; A<nodes_per_elem; A++) { //Loop over nodes
         for(unsigned int i=0; i<dim; i++){ //Loop over nodal dofs
           for (unsigned int B=0; B<nodes_per_elem; B++) {
@@ -280,10 +283,9 @@ void FEM<dim>::assemble_system(){
                     NOTE: this is the gradient with respect to the real domain (not the bi-unit domain)
                     elasticity tensor: use the function C(i,j,k,l)
                     det(J) times the total quadrature weight: fe_values.JxW(q)*/
-                  A_ = dim*A+i;
-                  B_ = dim*B+k;
-                  eps_kl = fe_values.shape_grad(dim*B+k,q)[l] + fe_values.shape_grad(dim*B+l,q)[k];
-                  Klocal[A_][B_] += fe_values.shape_grad(dim*A+i,q)[j] * C(i,j,k,l) * eps_kl * fe_values.JxW(q);
+                  Ai = dim*A+i;
+                  Bk = dim*B+k;
+                  Klocal[Ai][Bk] += fe_values.shape_grad(Ai,q)[j] * C(i,j,k,l) * fe_values.shape_grad(Bk,q)[l] * fe_values.JxW(q);
                 }
               }
             }
@@ -292,9 +294,9 @@ void FEM<dim>::assemble_system(){
       }
     }
     /*
-    for (A_=0; A_< dofs_per_elem; A_++) {
-      for (B_=0; B_ < dofs_per_elem; B_++) {
-        std::cout << Klocal[A_][B_] << " ";
+    for (Ai=0; Ai< dofs_per_elem; Ai++) {
+      for (Bk=0; Bk < dofs_per_elem; Bk++) {
+        std::cout << Klocal[Ai][Bk] << " ";
       }
       std::cout << "\n";
     }
@@ -329,9 +331,9 @@ void FEM<dim>::assemble_system(){
                 the face quadrature points are only on the Neumann face, so we are indeed doing a surface integral.
 
                 For det(J) times the total quadrature weight: fe_face_values.JxW(q)*/
-              A_ = dim*A + i;
-              //std::cout << fe_face_values.shape_value(A_,q) * h[i] * fe_face_values.JxW(q) << " ";
-              Flocal[A_] += fe_face_values.shape_value(A_,q) * h[i] * fe_face_values.JxW(q);
+              Ai = dim*A + i;
+              //std::cout << fe_face_values.shape_value(Ai,q) * h[i] * fe_face_values.JxW(q) << " ";
+              Flocal[Ai] += fe_face_values.shape_value(Ai,q) * h[i] * fe_face_values.JxW(q);
             }
             //std::cout << "\n";
           }
@@ -350,13 +352,13 @@ void FEM<dim>::assemble_system(){
     */
 
     //Assemble local K and F into global K and F
-    for(A_=0; A_<dofs_per_elem; A_++){
+    for(Ai=0; Ai<dofs_per_elem; Ai++){
       //EDIT - Assemble F from Flocal (you can look at HW2)
-      F[local_dof_indices[A_]] += Flocal[A_];
+      F[local_dof_indices[Ai]] += Flocal[Ai];
       
-      for(B_=0; B_<dofs_per_elem; B_++){
+      for(Bk=0; Bk<dofs_per_elem; Bk++){
         //EDIT - Assemble K from Klocal (you can look at HW2)
-        K.add(local_dof_indices[A_], local_dof_indices[B_], Klocal[A_][B_]);
+        K.add(local_dof_indices[Ai], local_dof_indices[Bk], Klocal[Ai][Bk]);
       }
     }
   }
