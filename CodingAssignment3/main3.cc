@@ -21,9 +21,9 @@ int main (){
 
     //NOTE: This is where you define the number of elements in the mesh
     std::vector<unsigned int> num_of_elems(dimension);
-    num_of_elems[0] = 5;
-    num_of_elems[1] = 5;
-    num_of_elems[2] = 5; //For example, a 10 x 10 x 10 element mesh
+    num_of_elems[0] = 10;
+    num_of_elems[1] = 10;
+    num_of_elems[2] = 10; //For example, a 10 x 10 x 10 element mesh
 
     FEM<dimension> problemObject;
     problemObject.generate_mesh(num_of_elems);
