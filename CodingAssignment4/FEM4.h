@@ -115,12 +115,12 @@ template <int dim>
 void FEM<dim>::generate_mesh(std::vector<unsigned int> numberOfElements){
 
   //Define the limits of your domain
-  double x_min = , //EDIT - define the left limit of the domain, etc.
-    x_max = , //EDIT
-    y_min = , //EDIT
-    y_max = , //EDIT
-    z_min = , //EDIT
-    z_max = ; //EDIT
+  double x_min = 0.0, //EDIT - define the left limit of the domain, etc.
+    x_max = 1.0, //EDIT
+    y_min = 0.0, //EDIT
+    y_max = 1.0, //EDIT
+    z_min = 0.0, //EDIT
+    z_max = 0.1; //EDIT
 
   Point<dim,double> min(x_min,y_min,z_min),
     max(x_max,y_max,z_max);
@@ -211,7 +211,7 @@ void FEM<dim>::assemble_system(){
   Vector<double>     Flocal (dofs_per_elem);
 
   std::vector<unsigned int> local_dof_indices (dofs_per_elem); //This relates local dof numbering to global dof numbering
-  double		    rho = ;                            //EDIT - specify the specific heat per unit volume
+  double		    rho = 3.8151e6; // N/(m2 K)        //EDIT - specify the specific heat per unit volume
 
   //loop over elements  
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active (),
