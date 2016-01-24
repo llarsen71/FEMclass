@@ -247,16 +247,16 @@ void FEM<dim>::assemble_system(){
       for(unsigned int A=0; A<fe.dofs_per_cell; A++){
         for(unsigned int B=0; B<fe.dofs_per_cell; B++){
           //EDIT - define Mlocal[A][B]
-          Mlocal[A][B] += fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*fe_values.JwX(q);
+          Mlocal[A][B] += fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*fe_values.JxW(q);
         }
       }
     }
 
     FullMatrix<double> kappa(dim,dim);
     kappa = 0.0;
-    kappa[0][0] = 385.; \\ W/(m*K)
-    kappa[1][1] = 385.; \\ W/(m*K)
-    kappa[2][2] = 385.; \\ W/(m*K)
+    kappa[0][0] = 385.; // W/(m*K)
+    kappa[1][1] = 385.; // W/(m*K)
+    kappa[2][2] = 385.; // W/(m*K)
 
     //Loop over local DOFs and quadrature points to populate Klocal
     Klocal = 0.;
@@ -266,7 +266,7 @@ void FEM<dim>::assemble_system(){
           for(unsigned int i=0; i<dim; i++){
             for(unsigned int j=0; j<dim; j++){
               //EDIT - define Klocal[A][B]
-              Klocal[A][B] += fe_values.shape_grad(A,q)[i] * kappa[i,j] *
+              Klocal[A][B] += fe_values.shape_grad(A,q)[i] * kappa[i][j] *
                               fe_values.shape_grad(B,q)[j] * fe_values.JxW(q);
             }
           }
@@ -316,6 +316,7 @@ void FEM<dim>::apply_initial_conditions(){
       D_trans[i] = 300.0; // K
     } else {
       //EDIT
+      double x = nodeLocation[i][X];
       D_trans[i] = 300.0 + 20*(x-0.5); // K
     }
   }
