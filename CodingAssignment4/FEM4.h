@@ -50,8 +50,10 @@ class FEM
 {
  public:
   //Class functions
-  FEM (double Alpha); // Class constructor 
+  FEM (double Alpha); // Class constructor
   ~FEM(); //Class destructor
+
+  const unsigned int X=0, Y=1, Z=2;
 
   //Solution steps
   void generate_mesh(std::vector<unsigned int> numberOfElements);
@@ -86,7 +88,7 @@ class FEM
 
   std::vector<double> l2norm_results; //A vector to store the l2norms calculated in the time loop in solve_trans()
   double              alpha;          //Specifies the Euler method, 0 <= alpha <= 1
-    
+
   //solution name array
   std::vector<std::string> nodal_solution_names;
   std::vector<DataComponentInterpretation::DataComponentInterpretation> nodal_data_component_interpretation;
@@ -132,7 +134,7 @@ template <int dim>
 void FEM<dim>::define_boundary_conds(){
 
   //EDIT - Define the Dirichlet boundary conditions.
-        
+
   /*Note: this will be very similiar to the define_boundary_conds function
     in the HW2 template. You will loop over all nodes and use "nodeLocations"
     to check if the node is on the boundary with a Dirichlet condition. If it is,
@@ -149,6 +151,14 @@ void FEM<dim>::define_boundary_conds(){
 
   const unsigned int totalNodes = dof_handler.n_dofs(); //Total number of nodes
 
+  for (unsigned int i; i<totalNodes; i++) {
+    if (nodeLocation[i][Y] == 0.0) {
+      boundary_values_of_D[i] = 300.0; // K
+    }
+    if (nodeLocation[i][Y] == 1.0) {
+      boundary_values_of_D[i] = 310.0; // K
+    }
+  }
 }
 
 //Setup data structures (sparse matrix, vectors)
@@ -189,7 +199,7 @@ void FEM<dim>::setup_system(){
 
   //Just some notes...
   std::cout << "   Number of active elems:       " << triangulation.n_active_cells() << std::endl;
-  std::cout << "   Number of degrees of freedom: " << dof_handler.n_dofs() << std::endl;   
+  std::cout << "   Number of degrees of freedom: " << dof_handler.n_dofs() << std::endl;
 }
 
 //Form elmental vectors and matrices and assemble to the global vector (F) and matrix (K)
@@ -200,8 +210,8 @@ void FEM<dim>::assemble_system(){
 
   FEValues<dim> fe_values(fe,
                           quadrature_formula,
-                          update_values | 
-                          update_gradients | 
+                          update_values |
+                          update_gradients |
                           update_JxW_values);
 
   const unsigned int dofs_per_elem = fe.dofs_per_cell;         //This gives you dofs per element
@@ -213,7 +223,7 @@ void FEM<dim>::assemble_system(){
   std::vector<unsigned int> local_dof_indices (dofs_per_elem); //This relates local dof numbering to global dof numbering
   double                    rho = 3.8151e6; // N/(m2 K)        //EDIT - specify the specific heat per unit volume
 
-  //loop over elements  
+  //loop over elements
   typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active (),
     endc = dof_handler.end();
   for (;elem!=endc; ++elem){
@@ -237,14 +247,16 @@ void FEM<dim>::assemble_system(){
       for(unsigned int A=0; A<fe.dofs_per_cell; A++){
         for(unsigned int B=0; B<fe.dofs_per_cell; B++){
           //EDIT - define Mlocal[A][B]
+          Mlocal[A][B] += fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*fe_values.JwX(q);
         }
       }
     }
 
     FullMatrix<double> kappa(dim,dim);
-    kappa[0][0] = 385.;
-    kappa[1][1] = 385.;
-    kappa[2][2] = 385.;
+    kappa = 0.0;
+    kappa[0][0] = 385.; \\ W/(m*K)
+    kappa[1][1] = 385.; \\ W/(m*K)
+    kappa[2][2] = 385.; \\ W/(m*K)
 
     //Loop over local DOFs and quadrature points to populate Klocal
     Klocal = 0.;
@@ -254,15 +266,19 @@ void FEM<dim>::assemble_system(){
           for(unsigned int i=0; i<dim; i++){
             for(unsigned int j=0; j<dim; j++){
               //EDIT - define Klocal[A][B]
+              Klocal[A][B] += fe_values.shape_grad(A,q)[i] * kappa[i,j] *
+                              fe_values.shape_grad(B,q)[j] * fe_values.JxW(q);
             }
           }
         }
       }
     }
 
-    for (unsigned int i=0; i<dofs_per_elem; ++i){
-      for (unsigned int j=0; j<dofs_per_elem; ++j){
+    for (unsigned int A=0; A<dofs_per_elem; ++A){
+      for (unsigned int B=0; B<dofs_per_elem; ++B){
         //EDIT - assemble K and M from Klocal and Mlocal
+        K.add(local_dof_indices[A], local_dof_indices[B], Klocal[A][B]);
+        M.add(local_dof_indices[A], local_dof_indices[B], Mlocal[A][B]);
       }
     }
   }
@@ -295,11 +311,12 @@ void FEM<dim>::apply_initial_conditions(){
   const unsigned int totalNodes = dof_handler.n_dofs(); //Total number of nodes
 
   for(unsigned int i=0; i<totalNodes; i++){
-    if(nodeLocation[i][0] < 0.5){
-      D_trans[i] = ; //EDIT
-    }
-    else{
-      D_trans[i] = ; //EDIT
+    if(nodeLocation[i][X] < 0.5){
+      //EDIT
+      D_trans[i] = 300.0; // K
+    } else {
+      //EDIT
+      D_trans[i] = 300.0 + 20*(x-0.5); // K
     }
   }
 
@@ -322,7 +339,6 @@ void FEM<dim>::apply_initial_conditions(){
 
   double current_l2norm = l2norm();
   l2norm_results.push_back(current_l2norm);
-
 }
 
 //Solve for D_transient
@@ -340,7 +356,7 @@ void FEM<dim>::solve_trans(){
 
   //Loop over time steps. For each time step, update D_transient from D_n to D_{n+1} using the V method
   for(unsigned int t_step=1; t_step<3001; t_step++){
-        
+
     /*SparseMatrix and Vector operations in deal.II:
       To add a matrix with a coefficient to system matrix, use system_matrix.add(coeffient,matrix)
       To add a vector with a coefficient to RHS, use RHS.add(coefficient,vector)
@@ -354,7 +370,7 @@ void FEM<dim>::solve_trans(){
     //Find D_tilde. Remember, at this point D_trans = D_n and V_trans = V_n
     //EDIT
 
-    /*Use D_tilde to update V_trans from V_n to V_{n+1}. This involves solving 
+    /*Use D_tilde to update V_trans from V_n to V_{n+1}. This involves solving
       a matrix/vector system: system_matrix*Vtrans = RHS. You need to define
       system_matrix and RHS to correctly solve for V_trans = V_{n+1} = system_matrix^{-1}*RHS*/
     //EDIT
@@ -428,8 +444,8 @@ double FEM<dim>::l2norm(){
   const unsigned int num_quad_pts = quadrature_formula.size(); //Total number of quad points in the element
   double u_steady, u_trans;
 
-  //loop over elements  
-  typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active (), 
+  //loop over elements
+  typename DoFHandler<dim>::active_cell_iterator elem = dof_handler.begin_active (),
     endc = dof_handler.end();
   for (;elem!=endc; ++elem){
     elem->get_dof_indices (local_dof_indices);
@@ -445,7 +461,7 @@ double FEM<dim>::l2norm(){
     }
 
   }
-        
+
   //The l2norm is the square root of the integral of (u_steady - u_trans)^2, using D_steady and D_trans
 
   return sqrt(l2norm);
