@@ -247,7 +247,7 @@ void FEM<dim>::assemble_system(){
       for(unsigned int A=0; A<fe.dofs_per_cell; A++){
         for(unsigned int B=0; B<fe.dofs_per_cell; B++){
           //EDIT - define Mlocal[A][B]
-          Mlocal[A][B] += fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*fe_values.JxW(q);
+          Mlocal[A][B] += rho*fe_values.shape_value(A,q)*fe_values.shape_value(B,q)*fe_values.JxW(q);
         }
       }
     }
@@ -370,11 +370,14 @@ void FEM<dim>::solve_trans(){
 
     //Find D_tilde. Remember, at this point D_trans = D_n and V_trans = V_n
     //EDIT
+    D_tilde[t_step] = D_trans[t_step] + delta_t*(1-alpha)*V_trans;
 
     /*Use D_tilde to update V_trans from V_n to V_{n+1}. This involves solving
       a matrix/vector system: system_matrix*Vtrans = RHS. You need to define
       system_matrix and RHS to correctly solve for V_trans = V_{n+1} = system_matrix^{-1}*RHS*/
     //EDIT
+    system_matrix.copy_from(M);
+    system_matrix.add(alpha*delta_t,K)
 
     //Apply boundary conditions on V_trans before solving the matrix/vector system
     MatrixTools::apply_boundary_values (boundary_values_of_V, system_matrix, V_trans, RHS, false);
