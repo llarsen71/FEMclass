@@ -368,19 +368,48 @@ void FEM<dim>::solve_trans(){
       To set RHS equal to -RHS, use RHS *= -1
       For some examples, look at the apply_initial_conditions() function*/
 
+    // dD/dt = V_{n+alpha}      // Definition of Velocity
+    //
+    // V_{n+alpha} = alpha*V_{n+1} + (1-alpha)*V_n
+    // D_{n+1} = D_n + dt*(alpha*V_{n+1}+(1-alpha)*V_n)
+    //
+    // This can be divided into a predictor portion (only uses values a step n) and a corrector
+    // portion (uses values at n+1):
+    //
+    //               Predictor                   Corrector
+    //   D_{n+1} = (D_n + dt*(1-alpha)*V_n)  + (dt*alpha*V_{n+1})
+    //   D_tilde = D_n + dt*(1-alpha)*V_n   // Predictor portion
+    // 
+    //   D_{n+1} = D_tilde + dt*alpha*V_{n+1}
+    
     //Find D_tilde. Remember, at this point D_trans = D_n and V_trans = V_n
     //EDIT
-    D_tilde[t_step] = D_trans[t_step] + delta_t*(1-alpha)*V_trans;
+    for (int i=0; i<totalNodes; i++) {
+      D_tilde[i] = D_trans[i] + delta_t*(1-alpha)*V_trans[i];
+    }
 
     /*Use D_tilde to update V_trans from V_n to V_{n+1}. This involves solving
       a matrix/vector system: system_matrix*Vtrans = RHS. You need to define
       system_matrix and RHS to correctly solve for V_trans = V_{n+1} = system_matrix^{-1}*RHS*/
+    
+    // M*V_{n+1} + K*D_{n+1} = F_{n+1}                            // System to solve for next time step
+    // M*V_{n+1} + K*(D_tilde + dt*alpha*V_{n+1}) = F_{n+1}
+    // (M + alpha*dt*K)*V_{n+1} = F_{n+1} - K*D_tilde
+    // V_{n+1} = (M + alpha*dt*K)^-1 * (F_{n+1} - K*D_tilde)
+    //            system_matrix               RHS
+    
     //EDIT
+    // system_matrix = (M + alpha*dt*K)
     system_matrix.copy_from(M);
-    system_matrix.add(alpha*delta_t,K)
+    system_matrix.add(alpha*delta_t,K);
+    
+    K.vmult(RHS, D_tilde);
+    RHS *= -1;
+    RHS.add(1., F);
+    
 
     //Apply boundary conditions on V_trans before solving the matrix/vector system
-    MatrixTools::apply_boundary_values (boundary_values_of_V, system_matrix, V_trans, RHS, false);
+    MatrixTools::apply_boundary_values(boundary_values_of_V, system_matrix, V_trans, RHS, false);
 
     //Solve for V_trans (V_{n+1}) in system_matrix*solution = RHS
     SparseDirectUMFPACK  A;
@@ -393,7 +422,13 @@ void FEM<dim>::solve_trans(){
       multiplies a vector by the matrix itself (non-inverted)*/
 
     //Update D_trans to D_{n+1} using D_tilde and V_trans (V_{n+1})
+    
     //EDIT
+    //From above we have the definition:
+    //   D_{n+1} = D_tilde + dt*alpha*V_{n+1}
+    for (int i=0; i<totalNodes; i++) {
+      D_trans[i] = D_tilde[i] + delta_t*alpha*V_trans[i];
+    }
 
     //Output the results every 100 seconds
     if(t_step%100 == 0){
