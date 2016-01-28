@@ -495,8 +495,11 @@ double FEM<dim>::l2norm(){
       for(unsigned int A=0; A<dofs_per_elem; A++){
         /*//EDIT - interpolate the steady state solution (u_steady) and transient solution (u_trans)
           at the current quadrature point using D_steady and D_trans. Similar to finding u_h in HW2*/
+        u_steady += D_steady[local_dof_indices[A]]*fe_values.shape_value(A,q);
+        u_trans  += D_trans [local_dof_indices[A]]*fe_values.shape_value(A,q);
       }
       //EDIT - define the l2norm of the difference between u_steady and u_trans
+      l2norm += pow(u_trans-u_steady, 2.0)*fe_values.JxW(q);
     }
 
   }
