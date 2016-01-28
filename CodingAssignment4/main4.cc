@@ -18,13 +18,13 @@ int main (){
     deallog.depth_console (0);
 
     const int dimension = 3;
-    double alpha = 0.; //Specify the Euler method (0 <= alpha <= 1)
+    double alpha = 1.0; //Specify the Euler method (0 <= alpha <= 1)
     FEM<dimension> problemObject(alpha);
 
     //NOTE: This is where you define the number of elements in the mesh
     std::vector<unsigned int> num_of_elems(dimension);
-    num_of_elems[0] = 10;
-    num_of_elems[1] = 10;
+    num_of_elems[0] = 20;
+    num_of_elems[1] = 20;
     num_of_elems[2] = 1; //For example, a 10x10x1 mesh
 
     problemObject.generate_mesh(num_of_elems);
